@@ -337,7 +337,7 @@ export default function ProfilePage() {
                 <Button
                   variant='outline'
                   className='w-full justify-start'
-                  disabled
+                  onClick={() => router.push('/settings')}
                 >
                   <Settings className='h-4 w-4 mr-2' />
                   Account Settings
@@ -345,7 +345,7 @@ export default function ProfilePage() {
                 <Button
                   variant='outline'
                   className='w-full justify-start'
-                  disabled
+                  onClick={() => router.push('/change-password')}
                 >
                   <Key className='h-4 w-4 mr-2' />
                   Change Password
@@ -353,7 +353,7 @@ export default function ProfilePage() {
                 <Button
                   variant='outline'
                   className='w-full justify-start'
-                  disabled
+                  onClick={() => router.push('/settings#security')}
                 >
                   <Shield className='h-4 w-4 mr-2' />
                   Security Options

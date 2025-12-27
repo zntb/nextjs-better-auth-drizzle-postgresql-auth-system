@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // app/settings/page.tsx
 'use client';
 
@@ -5,7 +6,6 @@ import { useState, useEffect } from 'react';
 import { useSession } from '@/lib/auth-client';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Card,
@@ -40,19 +40,16 @@ import {
   Key,
   Bell,
   Palette,
-  Smartphone,
   Monitor,
   Trash2,
   Download,
   Upload,
   Eye,
-  EyeOff,
-  Lock,
   Unlock,
   QrCode,
   Copy,
-  RefreshCw,
 } from 'lucide-react';
+import { ChangePasswordForm } from '@/components/auth/change-password-form';
 import {
   toggleEmailPassword,
   enableTwoFactor,
@@ -120,6 +117,8 @@ export default function SettingsPage() {
   const [success, setSuccess] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [show2FADialog, setShow2FADialog] = useState(false);
+  const [showChangePasswordDialog, setShowChangePasswordDialog] =
+    useState(false);
   const [qrCode, setQrCode] = useState('');
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
 
@@ -162,6 +161,16 @@ export default function SettingsPage() {
       loadTrustedDevices();
     }
   }, [session, isPending, router]);
+
+  // Handle navigation to security section
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash === '#security') {
+      const securityElement = document.getElementById('security-section');
+      if (securityElement) {
+        securityElement.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  }, [isPending]);
 
   const loadTrustedDevices = async () => {
     try {
@@ -348,7 +357,7 @@ export default function SettingsPage() {
           {/* Main Settings */}
           <div className='md:col-span-2 space-y-6'>
             {/* Security Settings */}
-            <Card>
+            <Card id='security-section'>
               <CardHeader>
                 <CardTitle className='flex items-center'>
                   <Shield className='h-5 w-5 mr-2' />
@@ -402,7 +411,10 @@ export default function SettingsPage() {
 
                 {/* Change Password Button */}
                 <div className='flex justify-end'>
-                  <Button variant='outline' disabled>
+                  <Button
+                    variant='outline'
+                    onClick={() => setShowChangePasswordDialog(true)}
+                  >
                     <Key className='h-4 w-4 mr-2' />
                     Change Password
                   </Button>
@@ -890,6 +902,12 @@ export default function SettingsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Change Password Dialog */}
+      <ChangePasswordForm
+        open={showChangePasswordDialog}
+        onOpenChange={setShowChangePasswordDialog}
+      />
     </div>
   );
 }
