@@ -1,12 +1,25 @@
+import { Suspense } from 'react';
 import { LoginForm } from '@/components/auth/login-form';
 import { SocialAuthButtons } from '@/components/auth/social-auth-buttons';
 import Link from 'next/link';
+
+function LoginFormWrapper() {
+  return <LoginForm />;
+}
 
 export default function LoginPage() {
   return (
     <div className='flex min-h-screen items-center justify-center'>
       <div className='w-full max-w-md space-y-4'>
-        <LoginForm />
+        <Suspense
+          fallback={
+            <div className='animate-pulse space-y-4'>
+              <div className='h-32 bg-gray-200 rounded-lg'></div>
+            </div>
+          }
+        >
+          <LoginFormWrapper />
+        </Suspense>
 
         <div className='relative'>
           <div className='absolute inset-0 flex items-center'>
