@@ -4,7 +4,7 @@
 import { db } from '@/lib/db';
 import { user, twoFactor, trustedDevice } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { getCurrentUser } from '../actions/auth-actions';
+import { getCurrentUser } from './auth-actions';
 import * as OTPAuth from 'otpauth';
 
 export async function toggleEmailPassword(enabled: boolean) {

@@ -66,6 +66,7 @@ export async function changePassword(
     // This depends on Better Auth's account structure
 
     return { success: true };
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (error) {
     return { error: 'Failed to change password' };
   }
