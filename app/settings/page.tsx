@@ -54,10 +54,12 @@ import {
   toggleEmailPassword,
   enableTwoFactor,
   disableTwoFactor,
+  verifyTwoFactor,
   getTrustedDevices,
   removeTrustedDevice,
   deleteAccount,
 } from '@/actions/settings-actions';
+import { Input } from '@/components/ui/input';
 
 interface TrustedDevice {
   id: string;
@@ -116,11 +118,16 @@ export default function SettingsPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [show2FADialog, setShow2FADialog] = useState(false);
   const [showChangePasswordDialog, setShowChangePasswordDialog] =
     useState(false);
   const [qrCode, setQrCode] = useState('');
+  const [show2FADialog, setShow2FADialog] = useState(false);
+  const [show2FAPasswordDialog, setShow2FAPasswordDialog] = useState(false);
+  const [totpURI, setTotpURI] = useState('');
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [twoFactorPassword, setTwoFactorPassword] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
 
   // Settings state
   const [settings, setSettings] = useState<SettingsState>({
@@ -220,49 +227,82 @@ export default function SettingsPage() {
 
   const handleTwoFactorToggle = async () => {
     if (settings.twoFactorEnabled) {
-      // Disable 2FA
-      setIsLoading(true);
-      setError('');
-      setSuccess('');
+      // Disable 2FA - show password prompt
+      setShow2FAPasswordDialog(true);
+    } else {
+      // Enable 2FA - show password prompt
+      setShow2FAPasswordDialog(true);
+    }
+  };
 
-      try {
-        const result = await disableTwoFactor();
+  const handlePasswordSubmit = async () => {
+    if (!twoFactorPassword) {
+      setError('Please enter your password');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+
+    try {
+      if (settings.twoFactorEnabled) {
+        // Disable 2FA
+        const result = await disableTwoFactor(twoFactorPassword);
         if (result.error) {
           setError(result.error);
         } else {
           setSettings(prev => ({ ...prev, twoFactorEnabled: false }));
           setSuccess('Two-factor authentication disabled');
+          setShow2FAPasswordDialog(false);
+          setTwoFactorPassword('');
         }
-      } catch (err) {
-        setError('Failed to disable 2FA');
-      } finally {
-        setIsLoading(false);
+      } else {
+        // Enable 2FA
+        const result = await enableTwoFactor(twoFactorPassword);
+        if (result.error) {
+          setError(result.error);
+        } else {
+          setTotpURI(result.totpURI || '');
+          setBackupCodes(result.backupCodes || []);
+          setShow2FAPasswordDialog(false);
+          setShow2FADialog(true); // Show the setup dialog
+          setTwoFactorPassword('');
+        }
       }
-    } else {
-      // Show 2FA setup dialog
-      setShow2FADialog(true);
+    } catch (err) {
+      setError('Failed to process request');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleEnable2FA = async () => {
-    setIsLoading(true);
+  const handleVerifyTOTP = async () => {
+    if (!verificationCode || verificationCode.length !== 6) {
+      setError('Please enter a valid 6-digit code');
+      return;
+    }
+
+    setIsVerifying(true);
     setError('');
 
     try {
-      const result = await enableTwoFactor();
+      const result = await verifyTwoFactor(verificationCode);
       if (result.error) {
         setError(result.error);
       } else {
-        setQrCode(result.secret || '');
-        setBackupCodes(result.backupCodes || []);
         setSettings(prev => ({ ...prev, twoFactorEnabled: true }));
-        setSuccess('Two-factor authentication enabled');
-        setShow2FADialog(false);
+        setSuccess('Two-factor authentication enabled successfully!');
+        setTimeout(() => {
+          setShow2FADialog(false);
+          setVerificationCode('');
+          setTotpURI('');
+          setBackupCodes([]);
+        }, 2000);
       }
     } catch (err) {
-      setError('Failed to enable 2FA');
+      setError('Failed to verify code');
     } finally {
-      setIsLoading(false);
+      setIsVerifying(false);
     }
   };
 
@@ -301,11 +341,6 @@ export default function SettingsPage() {
       setIsLoading(false);
       setShowDeleteDialog(false);
     }
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setSuccess('Copied to clipboard');
   };
 
   if (isPending) {
@@ -850,54 +885,224 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* 2FA Setup Dialog */}
-      <Dialog open={show2FADialog} onOpenChange={setShow2FADialog}>
+      {/* 2FA Password Dialog */}
+      <Dialog
+        open={show2FAPasswordDialog}
+        onOpenChange={setShow2FAPasswordDialog}
+      >
         <DialogContent className='max-w-md'>
           <DialogHeader>
-            <DialogTitle>Set Up Two-Factor Authentication</DialogTitle>
+            <DialogTitle>
+              {settings.twoFactorEnabled ? 'Disable' : 'Enable'} Two-Factor
+              Authentication
+            </DialogTitle>
             <DialogDescription>
-              Scan the QR code with your authenticator app and enter the code
-              below to verify setup.
+              Please enter your password to continue
             </DialogDescription>
           </DialogHeader>
           <div className='space-y-4'>
-            {qrCode && (
-              <div className='flex flex-col items-center space-y-4 p-4 border rounded-lg bg-muted/50'>
-                <QrCode className='h-32 w-32 text-muted-foreground' />
-                <div className='text-center space-y-2'>
-                  <p className='text-sm font-medium'>Secret Key:</p>
-                  <div className='flex items-center space-x-2 bg-background p-2 rounded border'>
-                    <code className='text-xs flex-1'>{qrCode}</code>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      onClick={() => copyToClipboard(qrCode)}
-                    >
-                      <Copy className='h-3 w-3' />
-                    </Button>
+            <div className='space-y-2'>
+              <Label htmlFor='2fa-password'>Password</Label>
+              <Input
+                id='2fa-password'
+                type='password'
+                value={twoFactorPassword}
+                onChange={e => setTwoFactorPassword(e.target.value)}
+                placeholder='Enter your password'
+                disabled={isLoading}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => {
+                setShow2FAPasswordDialog(false);
+                setTwoFactorPassword('');
+                setError('');
+              }}
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handlePasswordSubmit} disabled={isLoading}>
+              {isLoading ? 'Processing...' : 'Continue'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 2FA Setup Dialog */}
+      <Dialog
+        open={show2FADialog}
+        onOpenChange={open => {
+          if (!open) {
+            setShow2FADialog(false);
+            setVerificationCode('');
+            setTotpURI('');
+            setBackupCodes([]);
+            setError('');
+          }
+        }}
+      >
+        <DialogContent className='max-w-2xl'>
+          <DialogHeader>
+            <DialogTitle>Set Up Two-Factor Authentication</DialogTitle>
+            <DialogDescription>
+              Follow these steps to secure your account with 2FA
+            </DialogDescription>
+          </DialogHeader>
+          <div className='space-y-6'>
+            {error && (
+              <Alert variant='destructive'>
+                <AlertCircle className='h-4 w-4' />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {success && (
+              <Alert>
+                <CheckCircle className='h-4 w-4' />
+                <AlertDescription>{success}</AlertDescription>
+              </Alert>
+            )}
+
+            {/* Step 1: Scan QR Code */}
+            {totpURI && (
+              <div className='space-y-3'>
+                <div className='flex items-center space-x-2'>
+                  <div className='flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-semibold'>
+                    1
+                  </div>
+                  <h3 className='font-semibold'>Scan QR Code</h3>
+                </div>
+                <p className='text-sm text-muted-foreground ml-10'>
+                  Use your authenticator app (Google Authenticator, Authy, etc.)
+                  to scan this QR code
+                </p>
+                <div className='flex flex-col items-center space-y-4 p-4 border rounded-lg bg-muted/50 ml-10'>
+                  <div className='bg-white p-4 rounded-lg'>
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                        totpURI,
+                      )}`}
+                      alt='2FA QR Code'
+                      className='h-48 w-48'
+                    />
+                  </div>
+                  <div className='text-center space-y-2 w-full'>
+                    <p className='text-sm font-medium'>
+                      Or enter this key manually:
+                    </p>
+                    <div className='flex items-center space-x-2 bg-background p-2 rounded border'>
+                      <code className='text-xs flex-1 break-all'>
+                        {totpURI.split('secret=')[1]?.split('&')[0]}
+                      </code>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => {
+                          navigator.clipboard.writeText(
+                            totpURI.split('secret=')[1]?.split('&')[0] || '',
+                          );
+                          setSuccess('Key copied to clipboard');
+                          setTimeout(() => setSuccess(''), 2000);
+                        }}
+                      >
+                        <Copy className='h-3 w-3' />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
+
+            {/* Step 2: Save Backup Codes */}
             {backupCodes.length > 0 && (
-              <div className='space-y-2'>
-                <Label>Backup Codes (save these in a safe place):</Label>
-                <div className='grid grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg border'>
-                  {backupCodes.map((code, index) => (
-                    <code key={index} className='text-xs'>
-                      {code}
-                    </code>
-                  ))}
+              <div className='space-y-3'>
+                <div className='flex items-center space-x-2'>
+                  <div className='flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-semibold'>
+                    2
+                  </div>
+                  <h3 className='font-semibold'>Save Backup Codes</h3>
+                </div>
+                <p className='text-sm text-muted-foreground ml-10'>
+                  Save these backup codes in a safe place. Each can be used once
+                  if you lose access to your authenticator.
+                </p>
+                <div className='space-y-2 ml-10'>
+                  <div className='grid grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg border'>
+                    {backupCodes.map((code, index) => (
+                      <code key={index} className='text-xs'>
+                        {code}
+                      </code>
+                    ))}
+                  </div>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='w-full'
+                    onClick={() => {
+                      navigator.clipboard.writeText(backupCodes.join('\n'));
+                      setSuccess('Backup codes copied to clipboard');
+                      setTimeout(() => setSuccess(''), 2000);
+                    }}
+                  >
+                    <Copy className='h-4 w-4 mr-2' />
+                    Copy All Backup Codes
+                  </Button>
                 </div>
               </div>
             )}
+
+            {/* Step 3: Verify */}
+            <div className='space-y-3'>
+              <div className='flex items-center space-x-2'>
+                <div className='flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-semibold'>
+                  3
+                </div>
+                <h3 className='font-semibold'>Verify Setup</h3>
+              </div>
+              <p className='text-sm text-muted-foreground ml-10'>
+                Enter the 6-digit code from your authenticator app to complete
+                setup
+              </p>
+              <div className='space-y-2 ml-10'>
+                <Label htmlFor='verification-code'>Verification Code</Label>
+                <Input
+                  id='verification-code'
+                  type='text'
+                  maxLength={6}
+                  value={verificationCode}
+                  onChange={e =>
+                    setVerificationCode(e.target.value.replace(/\D/g, ''))
+                  }
+                  placeholder='000000'
+                  disabled={isVerifying}
+                  className='text-center text-lg tracking-widest'
+                />
+              </div>
+            </div>
           </div>
           <DialogFooter>
-            <Button variant='outline' onClick={() => setShow2FADialog(false)}>
+            <Button
+              variant='outline'
+              onClick={() => {
+                setShow2FADialog(false);
+                setVerificationCode('');
+                setTotpURI('');
+                setBackupCodes([]);
+                setError('');
+              }}
+              disabled={isVerifying}
+            >
               Cancel
             </Button>
-            <Button onClick={handleEnable2FA} disabled={isLoading}>
-              {isLoading ? 'Setting up...' : 'Complete Setup'}
+            <Button
+              onClick={handleVerifyTOTP}
+              disabled={isVerifying || verificationCode.length !== 6}
+            >
+              {isVerifying ? 'Verifying...' : 'Complete Setup'}
             </Button>
           </DialogFooter>
         </DialogContent>

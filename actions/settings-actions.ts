@@ -5,7 +5,8 @@ import { db } from '@/lib/db';
 import { user, twoFactor, trustedDevice } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUser } from './auth-actions';
-import * as OTPAuth from 'otpauth';
+import { auth } from '@/lib/auth';
+import { headers } from 'next/headers';
 
 export async function toggleEmailPassword(enabled: boolean) {
   try {
@@ -25,55 +26,78 @@ export async function toggleEmailPassword(enabled: boolean) {
   }
 }
 
-export async function enableTwoFactor() {
+export async function enableTwoFactor(password: string) {
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser) {
       return { error: 'Unauthorized' };
     }
 
-    const secret = new OTPAuth.Secret({ size: 20 });
-    const backupCodes = Array.from({ length: 10 }, () =>
-      Math.random().toString(36).substring(2, 10).toUpperCase(),
-    );
-
-    await db.insert(twoFactor).values({
-      userId: currentUser.id,
-      secret: secret.base32,
-      backupCodes: JSON.stringify(backupCodes),
+    // Use Better Auth's built-in 2FA API
+    const result = await auth.api.enableTwoFactor({
+      body: {
+        password,
+      },
+      headers: await headers(),
     });
 
-    await db
-      .update(user)
-      .set({ twoFactorEnabled: true })
-      .where(eq(user.id, currentUser.id));
+    if (!result) {
+      return { error: 'Failed to enable 2FA. Please check your password.' };
+    }
 
     return {
       success: true,
-      secret: secret.base32,
-      backupCodes,
+      totpURI: result.totpURI,
+      backupCodes: result.backupCodes,
     };
   } catch (error) {
+    console.error('Enable 2FA error:', error);
     return { error: 'Failed to enable 2FA' };
   }
 }
 
-export async function disableTwoFactor() {
+export async function verifyTwoFactor(code: string) {
+  try {
+    const result = await auth.api.verifyTOTP({
+      body: {
+        code,
+      },
+      headers: await headers(),
+    });
+
+    if (!result) {
+      return { error: 'Invalid verification code' };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Verify 2FA error:', error);
+    return { error: 'Failed to verify 2FA code' };
+  }
+}
+
+export async function disableTwoFactor(password: string) {
   try {
     const currentUser = await getCurrentUser();
     if (!currentUser) {
       return { error: 'Unauthorized' };
     }
 
-    await db.delete(twoFactor).where(eq(twoFactor.userId, currentUser.id));
+    // Use Better Auth's built-in 2FA API
+    const result = await auth.api.disableTwoFactor({
+      body: {
+        password,
+      },
+      headers: await headers(),
+    });
 
-    await db
-      .update(user)
-      .set({ twoFactorEnabled: false })
-      .where(eq(user.id, currentUser.id));
+    if (!result) {
+      return { error: 'Failed to disable 2FA. Please check your password.' };
+    }
 
     return { success: true };
   } catch (error) {
+    console.error('Disable 2FA error:', error);
     return { error: 'Failed to disable 2FA' };
   }
 }
