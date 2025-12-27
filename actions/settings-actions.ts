@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm';
 import { getCurrentUser } from './auth-actions';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
+import { revalidatePath } from 'next/cache';
 
 export async function toggleEmailPassword(enabled: boolean) {
   try {
@@ -72,6 +73,19 @@ export async function verifyTwoFactor(code: string) {
       return { error: 'Invalid verification code' };
     }
 
+    // After successful verification, update the user in the database
+    const currentUser = await getCurrentUser();
+    if (currentUser) {
+      await db
+        .update(user)
+        .set({ twoFactorEnabled: true })
+        .where(eq(user.id, currentUser.id));
+    }
+
+    // Revalidate paths to refresh the session
+    revalidatePath('/settings');
+    revalidatePath('/profile');
+
     return { success: true };
   } catch (error) {
     console.error('Verify 2FA error:', error);
@@ -97,6 +111,16 @@ export async function disableTwoFactor(password: string) {
     if (!result) {
       return { error: 'Failed to disable 2FA. Please check your password.' };
     }
+
+    // Update the database
+    await db
+      .update(user)
+      .set({ twoFactorEnabled: false })
+      .where(eq(user.id, currentUser.id));
+
+    // Revalidate paths
+    revalidatePath('/settings');
+    revalidatePath('/profile');
 
     return { success: true };
   } catch (error) {

@@ -4,7 +4,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from '@/lib/auth-client';
+import { authClient, useSession } from '@/lib/auth-client';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -154,6 +154,15 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
+    const checkStatus = async () => {
+      const { check2FAStatus } = await import('@/actions/check-2fa-status');
+      const status = await check2FAStatus();
+      console.log('2FA Status:', status);
+    };
+    checkStatus();
+  }, []);
+
+  useEffect(() => {
     if (!isPending && !session?.user) {
       router.push('/login');
       return;
@@ -291,14 +300,23 @@ export default function SettingsPage() {
       if (result.error) {
         setError(result.error);
       } else {
-        setSettings(prev => ({ ...prev, twoFactorEnabled: true }));
-        setSuccess('Two-factor authentication enabled successfully!');
-        setTimeout(() => {
-          setShow2FADialog(false);
-          setVerificationCode('');
-          setTotpURI('');
-          setBackupCodes([]);
-        }, 2000);
+        // Force a session refresh after verification
+        const { data: newSession } = await authClient.getSession();
+
+        if (newSession?.user?.twoFactorEnabled) {
+          setSettings(prev => ({ ...prev, twoFactorEnabled: true }));
+          setSuccess('Two-factor authentication enabled successfully!');
+          setTimeout(() => {
+            setShow2FADialog(false);
+            setVerificationCode('');
+            setTotpURI('');
+            setBackupCodes([]);
+          }, 2000);
+        } else {
+          setError(
+            '2FA verification succeeded but status not updated. Please refresh the page.',
+          );
+        }
       }
     } catch (err) {
       setError('Failed to verify code');

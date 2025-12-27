@@ -48,6 +48,7 @@ export function LoginForm() {
         },
         {
           onError: ctx => {
+            setIsLoading(false);
             if (ctx.error.status === 403) {
               // User hasn't verified their email
               setNeedsVerification(true);
@@ -59,20 +60,30 @@ export function LoginForm() {
           onSuccess: ctx => {
             // Check if 2FA is required
             if (ctx.data?.twoFactorRedirect) {
-              // This will be handled by the auth client's onTwoFactorRedirect callback
+              // DO NOT redirect here - let onTwoFactorRedirect handle it
+              // The global callback will handle the redirect to /2fa
+              console.log('2FA required, redirecting...');
               return;
             }
-            // Normal success flow
+            // Only redirect to home if 2FA is NOT required
+            setIsLoading(false);
             router.push('/');
             router.refresh();
           },
         },
       );
+
+      // If we get here and result has twoFactorRedirect, the onTwoFactorRedirect should handle it
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore - checking for twoFactorRedirect
+      if (result?.data?.twoFactorRedirect) {
+        // Let the global onTwoFactorRedirect callback handle the redirect
+        return;
+      }
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (err) {
-      // Error already handled in onError callback
-    } finally {
       setIsLoading(false);
+      setError('An unexpected error occurred');
     }
   }
 
