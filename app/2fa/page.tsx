@@ -6,6 +6,7 @@ import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Card,
   CardContent,
@@ -22,6 +23,7 @@ export default function TwoFAPage() {
   const [error, setError] = useState('');
   const [code, setCode] = useState('');
   const [backupCode, setBackupCode] = useState('');
+  const [trustDevice, setTrustDevice] = useState(false); // Default to false
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -37,20 +39,29 @@ export default function TwoFAPage() {
     }
 
     try {
-      // Try TOTP verification first
-      const { data, error: verifyError } =
-        await authClient.twoFactor.verifyTotp({
-          code: verificationCode,
-          trustDevice: true,
-        });
+      let result;
 
-      if (verifyError) {
-        setError(verifyError.message || 'Invalid verification code');
+      if (code) {
+        // TOTP verification
+        result = await authClient.twoFactor.verifyTotp({
+          code: verificationCode,
+          trustDevice, // Use checkbox value, not hardcoded true
+        });
+      } else {
+        // Backup code verification
+        result = await authClient.twoFactor.verifyBackupCode({
+          code: verificationCode,
+          trustDevice, // Use checkbox value
+        });
+      }
+
+      if (result.error) {
+        setError(result.error.message || 'Invalid verification code');
         setIsLoading(false);
         return;
       }
 
-      if (data) {
+      if (result.data) {
         // 2FA verified successfully, redirect to home
         router.push('/');
         router.refresh();
@@ -99,6 +110,9 @@ export default function TwoFAPage() {
                 disabled={isLoading}
                 maxLength={6}
               />
+              <p className='text-xs text-muted-foreground'>
+                Enter the code from your authenticator app
+              </p>
             </div>
 
             <div className='relative'>
@@ -124,6 +138,32 @@ export default function TwoFAPage() {
                 }}
                 disabled={isLoading}
               />
+              <p className='text-xs text-muted-foreground'>
+                Use a backup code if you don&apos;t have access to your
+                authenticator
+              </p>
+            </div>
+
+            {/* Trust Device Checkbox */}
+            <div className='flex items-center space-x-2 p-3 border rounded-lg bg-muted/50'>
+              <Checkbox
+                id='trustDevice'
+                checked={trustDevice}
+                onCheckedChange={checked => setTrustDevice(checked as boolean)}
+                disabled={isLoading}
+              />
+              <div className='flex-1'>
+                <Label
+                  htmlFor='trustDevice'
+                  className='text-sm font-normal cursor-pointer'
+                >
+                  Trust this device for 30 days
+                </Label>
+                <p className='text-xs text-muted-foreground mt-1'>
+                  You won&apos;t be asked for 2FA on this device during this
+                  period
+                </p>
+              </div>
             </div>
 
             <Button type='submit' className='w-full' disabled={isLoading}>

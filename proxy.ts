@@ -15,6 +15,9 @@ export async function proxy(request: NextRequest) {
   const adminRoutes = ['/admin'];
   const authRoutes = ['/login', '/register'];
 
+  // IMPORTANT: Don't redirect from the 2FA page
+  const skip2FACheck = ['/2fa', '/debug-2fa'];
+
   // Check if user is blocked
   if (session?.user?.blocked) {
     return NextResponse.redirect(new URL('/blocked', request.url));
@@ -30,7 +33,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // Protected routes
+  // Protected routes - but allow access to /2fa page
   if (protectedRoutes.some(route => pathname.startsWith(route))) {
     if (!session) {
       return NextResponse.redirect(new URL('/login', request.url));
@@ -38,8 +41,9 @@ export async function proxy(request: NextRequest) {
   }
 
   // Redirect authenticated users away from auth pages
+  // BUT don't redirect from /2fa page
   if (authRoutes.some(route => pathname.startsWith(route))) {
-    if (session) {
+    if (session && !skip2FACheck.some(route => pathname.startsWith(route))) {
       return NextResponse.redirect(new URL('/', request.url));
     }
   }
