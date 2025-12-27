@@ -12,10 +12,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Eye, EyeOff, Key, AlertCircle, CheckCircle, Mail } from 'lucide-react';
+import { Eye, EyeOff, Key } from 'lucide-react';
 import { changePassword } from '@/actions/profile-actions';
-import { auth } from '@/lib/auth';
+import { toast } from 'sonner';
 
 interface ChangePasswordFormProps {
   open: boolean;
@@ -27,13 +26,12 @@ export function ChangePasswordForm({
   onOpenChange,
 }: ChangePasswordFormProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [showPasswords, setShowPasswords] = useState({
     current: false,
     new: false,
     confirm: false,
   });
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [resetEmailSent, setResetEmailSent] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -45,18 +43,16 @@ export function ChangePasswordForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setError('');
-    setSuccess('');
 
     // Validation
     if (formData.newPassword !== formData.confirmPassword) {
-      setError('New passwords do not match');
+      toast.error('New passwords do not match');
       setIsLoading(false);
       return;
     }
 
     if (formData.newPassword.length < 8) {
-      setError('New password must be at least 8 characters long');
+      toast.error('New password must be at least 8 characters long');
       setIsLoading(false);
       return;
     }
@@ -68,9 +64,23 @@ export function ChangePasswordForm({
       );
 
       if (result.error) {
-        setError(result.error);
+        if (result.error.includes('Current password is incorrect')) {
+          toast.error('Current password is incorrect', {
+            description: 'Please check your current password and try again.',
+            action: {
+              label: 'Send Reset Email',
+              onClick: handlePasswordReset,
+            },
+          });
+        } else {
+          toast.error('Failed to change password', {
+            description: result.error,
+          });
+        }
       } else {
-        setSuccess('Password changed successfully!');
+        toast.success('Password changed successfully!', {
+          description: 'Your password has been updated.',
+        });
         // Reset form and close dialog after a delay
         setTimeout(() => {
           setFormData({
@@ -78,12 +88,13 @@ export function ChangePasswordForm({
             newPassword: '',
             confirmPassword: '',
           });
-          setSuccess('');
           onOpenChange(false);
         }, 2000);
       }
     } catch (err) {
-      setError('Failed to change password. Please try again.');
+      toast.error('Failed to change password', {
+        description: 'Please try again.' + err,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -102,8 +113,6 @@ export function ChangePasswordForm({
       newPassword: '',
       confirmPassword: '',
     });
-    setError('');
-    setSuccess('');
     setResetEmailSent(false);
     onOpenChange(false);
   };
@@ -111,16 +120,17 @@ export function ChangePasswordForm({
   const handlePasswordReset = async () => {
     try {
       setIsLoading(true);
-      setError('');
 
       // This would trigger a password reset email
       // For now, we'll just show a success message
       setResetEmailSent(true);
-      setSuccess(
-        'Password reset instructions have been sent to your email address.',
-      );
+      toast.success('Password reset instructions sent', {
+        description: 'Check your email for password reset instructions.',
+      });
     } catch (err) {
-      setError('Failed to send reset email. Please try again.');
+      toast.error('Failed to send reset email', {
+        description: 'Please try again.' + err,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -140,40 +150,6 @@ export function ChangePasswordForm({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className='space-y-4'>
-          {/* Error Message */}
-          {error && (
-            <Alert variant='destructive'>
-              <AlertCircle className='h-4 w-4' />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>
-                <div className='space-y-2'>
-                  <p>{error}</p>
-                  {error.includes('reset your password') && (
-                    <Button
-                      variant='outline'
-                      size='sm'
-                      onClick={handlePasswordReset}
-                      disabled={isLoading}
-                      className='mt-2'
-                    >
-                      <Mail className='h-4 w-4 mr-2' />
-                      Send Password Reset Email
-                    </Button>
-                  )}
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Success Message */}
-          {success && (
-            <Alert>
-              <CheckCircle className='h-4 w-4' />
-              <AlertTitle>Success</AlertTitle>
-              <AlertDescription>{success}</AlertDescription>
-            </Alert>
-          )}
-
           {/* Current Password */}
           <div className='space-y-2'>
             <Label htmlFor='currentPassword'>Current Password</Label>
