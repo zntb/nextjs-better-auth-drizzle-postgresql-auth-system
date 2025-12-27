@@ -60,7 +60,9 @@ export const auth = betterAuth({
       disableSignUp: false,
     }),
     admin(),
-    twoFactor(),
+    twoFactor({
+      skipVerificationOnEnable: false, // Require TOTP verification after enabling
+    }),
     username(),
   ],
   trustedOrigins: [process.env.BETTER_AUTH_URL!],

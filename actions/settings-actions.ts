@@ -45,8 +45,11 @@ export async function enableTwoFactor(password: string) {
       return { error: 'Failed to enable 2FA. Please check your password.' };
     }
 
+    // 2FA is enabled but requires verification
+    // Return the TOTP URI and backup codes, and indicate that verification is needed
     return {
       success: true,
+      needsVerification: true,
       totpURI: result.totpURI,
       backupCodes: result.backupCodes,
     };

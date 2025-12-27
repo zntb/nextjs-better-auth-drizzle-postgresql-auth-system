@@ -72,6 +72,7 @@ export function TwoFactorSettings({ enabled }: { enabled: boolean }) {
       // Reset form
       setPassword('');
       setShowPasswordForm(false);
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
       setError('An unexpected error occurred');
     } finally {
