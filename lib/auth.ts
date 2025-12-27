@@ -24,6 +24,8 @@ export const auth = betterAuth({
   },
   emailVerification: {
     sendVerificationEmail: async ({ user, url }) => {
+      // The 'url' parameter from Better Auth contains the full verification URL
+      // Format: /api/auth/verify-email?token=xxx&callbackURL=xxx
       await sendVerificationEmail(user.email, url);
     },
     sendOnSignUp: true,
@@ -50,7 +52,7 @@ export const auth = betterAuth({
   },
   plugins: [
     magicLink({
-      sendMagicLink: async ({ email, url, token }, ctx) => {
+      sendMagicLink: async ({ email, url }) => {
         await sendMagicLinkEmail(email, url);
       },
       expiresIn: 600, // 10 minutes

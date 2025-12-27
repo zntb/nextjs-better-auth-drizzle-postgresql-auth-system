@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { verifyEmail } from '@/actions/auth-actions';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -11,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { CheckCircle, XCircle } from 'lucide-react';
 
 export function VerifyForm() {
   const router = useRouter();
@@ -18,54 +18,32 @@ export function VerifyForm() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>(
     'loading',
   );
-  const [message, setMessage] = useState('');
 
-  const handleVerification = useCallback(async () => {
-    const token = searchParams.get('token');
+  useEffect(() => {
+    // Check if there's an error from Better Auth
+    const error = searchParams.get('error');
 
-    if (!token) {
+    if (error === 'INVALID_TOKEN') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStatus('error');
-      setMessage('No verification token provided');
-      return;
+    } else {
+      // If no error, verification was successful
+      setStatus('success');
     }
-
-    try {
-      const result = await verifyEmail(token);
-
-      if (result.error) {
-        setStatus('error');
-        setMessage(result.error);
-      } else {
-        setStatus('success');
-        setMessage(
-          'Email verified successfully! You can now sign in to your account.',
-        );
-        // Redirect to login after 3 seconds
-        setTimeout(() => {
-          router.push('/login');
-        }, 3000);
-      }
-    } catch (err) {
-      setStatus('error');
-      setMessage('Failed to verify email');
-    }
-  }, [searchParams, router]);
-
-  // Call verification on component mount
-  handleVerification();
+  }, [searchParams]);
 
   if (status === 'loading') {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Verifying Email</CardTitle>
+          <CardTitle>Processing...</CardTitle>
           <CardDescription>
             Please wait while we verify your email address...
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className='flex items-center justify-center py-8'>
-            <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600'></div>
+            <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-primary'></div>
           </div>
         </CardContent>
       </Card>
@@ -75,47 +53,64 @@ export function VerifyForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>
-          {status === 'success' ? 'Email Verified' : 'Verification Failed'}
-        </CardTitle>
-        <CardDescription>
-          {status === 'success'
-            ? 'Your email has been successfully verified'
-            : 'There was a problem verifying your email'}
-        </CardDescription>
+        <div className='flex items-center gap-3'>
+          {status === 'success' ? (
+            <div className='h-12 w-12 rounded-full bg-green-100 flex items-center justify-center'>
+              <CheckCircle className='h-6 w-6 text-green-600' />
+            </div>
+          ) : (
+            <div className='h-12 w-12 rounded-full bg-red-100 flex items-center justify-center'>
+              <XCircle className='h-6 w-6 text-red-600' />
+            </div>
+          )}
+          <div>
+            <CardTitle>
+              {status === 'success' ? 'Email Verified!' : 'Verification Failed'}
+            </CardTitle>
+            <CardDescription>
+              {status === 'success'
+                ? 'Your email has been successfully verified'
+                : 'There was a problem verifying your email'}
+            </CardDescription>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className='space-y-4'>
-        <div
-          className={`p-3 rounded-md text-sm ${
-            status === 'success'
-              ? 'text-green-700 bg-green-50'
-              : 'text-red-700 bg-red-50'
-          }`}
-        >
-          {message}
-        </div>
-
-        {status === 'error' && (
-          <div className='space-y-2'>
-            <p className='text-sm text-gray-600'>
-              The verification link may have expired or is invalid.
-            </p>
+        {status === 'success' ? (
+          <>
+            <div className='p-4 rounded-lg bg-green-50 border border-green-200'>
+              <p className='text-sm text-green-800'>
+                Your email address has been verified. You can now sign in to
+                your account.
+              </p>
+            </div>
+            <Button onClick={() => router.push('/login')} className='w-full'>
+              Continue to Sign In
+            </Button>
+          </>
+        ) : (
+          <>
+            <div className='p-4 rounded-lg bg-red-50 border border-red-200'>
+              <p className='text-sm text-red-800 mb-2'>
+                The verification link is invalid or has expired.
+              </p>
+              <p className='text-xs text-red-700'>
+                Please request a new verification email or sign up again.
+              </p>
+            </div>
             <div className='flex gap-2'>
               <Button
                 onClick={() => router.push('/register')}
                 variant='outline'
+                className='flex-1'
               >
                 Sign Up Again
               </Button>
-              <Button onClick={() => router.push('/login')}>Go to Login</Button>
+              <Button onClick={() => router.push('/login')} className='flex-1'>
+                Go to Login
+              </Button>
             </div>
-          </div>
-        )}
-
-        {status === 'success' && (
-          <Button onClick={() => router.push('/login')} className='w-full'>
-            Continue to Sign In
-          </Button>
+          </>
         )}
       </CardContent>
     </Card>

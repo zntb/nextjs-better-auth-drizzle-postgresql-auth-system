@@ -13,18 +13,20 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Mail } from 'lucide-react';
 
 export function SignupForm() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [success, setSuccess] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-    setSuccess('');
+    setSuccess(false);
 
     const formData = new FormData(e.currentTarget);
     const email = formData.get('email') as string;
@@ -49,20 +51,68 @@ export function SignupForm() {
         email,
         password,
         name,
+        // Users will be redirected to /verify after clicking the verification link
+        callbackURL: '/verify',
       });
-      setSuccess(
-        'Account created! Please check your email to verify your account.',
-      );
-      // Optionally redirect to a verification page or login page
-      setTimeout(() => {
-        router.push('/login');
-      }, 3000);
+
+      setSuccess(true);
     } catch (err) {
       const error = err as { message?: string };
       setError(error.message || 'Failed to create account');
     } finally {
       setIsLoading(false);
     }
+  }
+
+  if (success) {
+    return (
+      <Card>
+        <CardHeader>
+          <div className='flex items-center gap-3'>
+            <div className='h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center'>
+              <Mail className='h-6 w-6 text-blue-600' />
+            </div>
+            <div>
+              <CardTitle>Check Your Email</CardTitle>
+              <CardDescription>
+                We&apos;ve sent you a verification link
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className='space-y-4'>
+          <Alert>
+            <Mail className='h-4 w-4' />
+            <AlertTitle>Verification Email Sent</AlertTitle>
+            <AlertDescription>
+              Please check your email inbox and click the verification link to
+              activate your account. The link will expire in 24 hours.
+            </AlertDescription>
+          </Alert>
+
+          <div className='space-y-2'>
+            <p className='text-sm text-muted-foreground'>
+              Didn&apos;t receive the email?
+            </p>
+            <ul className='text-sm text-muted-foreground list-disc list-inside space-y-1'>
+              <li>Check your spam or junk folder</li>
+              <li>Make sure you entered the correct email address</li>
+              <li>Wait a few minutes and check again</li>
+            </ul>
+          </div>
+
+          <div className='pt-4 border-t'>
+            <Button
+              variant='outline'
+              onClick={() => router.push('/login')}
+              className='w-full'
+            >
+              Back to Login
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -74,15 +124,9 @@ export function SignupForm() {
       <CardContent>
         <form onSubmit={onSubmit} className='space-y-4'>
           {error && (
-            <div className='p-3 text-sm text-red-500 bg-red-50 rounded-md'>
-              {error}
-            </div>
-          )}
-
-          {success && (
-            <div className='p-3 text-sm text-green-500 bg-green-50 rounded-md'>
-              {success}
-            </div>
+            <Alert variant='destructive'>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
           <div className='space-y-2'>
@@ -93,6 +137,7 @@ export function SignupForm() {
               type='text'
               placeholder='John Doe'
               required
+              disabled={isLoading}
             />
           </div>
 
@@ -104,6 +149,7 @@ export function SignupForm() {
               type='email'
               placeholder='email@example.com'
               required
+              disabled={isLoading}
             />
           </div>
 
@@ -115,8 +161,9 @@ export function SignupForm() {
               type='password'
               required
               minLength={8}
+              disabled={isLoading}
             />
-            <p className='text-xs text-gray-500'>
+            <p className='text-xs text-muted-foreground'>
               Must be at least 8 characters long
             </p>
           </div>
@@ -128,6 +175,7 @@ export function SignupForm() {
               name='confirmPassword'
               type='password'
               required
+              disabled={isLoading}
             />
           </div>
 

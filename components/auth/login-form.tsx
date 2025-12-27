@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { signIn } from '@/lib/auth-client';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { signIn, authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,31 +13,74 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { CheckCircle, AlertCircle } from 'lucide-react';
 
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
+
+  // Check if user just verified their email
+  const justVerified = searchParams.get('verified') === 'true';
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    setNeedsVerification(false);
 
     const formData = new FormData(e.currentTarget);
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
 
+    setUserEmail(email);
+
     try {
-      await signIn.email({
-        email,
-        password,
-      });
-      router.push('/');
-      router.refresh();
+      await signIn.email(
+        {
+          email,
+          password,
+        },
+        {
+          onError: ctx => {
+            if (ctx.error.status === 403) {
+              // User hasn't verified their email
+              setNeedsVerification(true);
+              setError('Please verify your email address before signing in.');
+            } else {
+              setError(ctx.error.message || 'Invalid credentials');
+            }
+          },
+          onSuccess: () => {
+            router.push('/');
+            router.refresh();
+          },
+        },
+      );
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (err) {
-      setError('Invalid credentials');
+      // Error already handled in onError callback
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function resendVerification() {
+    setIsLoading(true);
+    try {
+      await authClient.sendVerificationEmail({
+        email: userEmail,
+        callbackURL: '/verify',
+      });
+      setVerificationSent(true);
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (err) {
+      setError('Failed to send verification email');
     } finally {
       setIsLoading(false);
     }
@@ -52,10 +95,48 @@ export function LoginForm() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {justVerified && (
+          <Alert className='mb-4'>
+            <CheckCircle className='h-4 w-4' />
+            <AlertTitle>Email Verified!</AlertTitle>
+            <AlertDescription>
+              Your email has been verified. You can now sign in to your account.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {verificationSent && (
+          <Alert className='mb-4'>
+            <CheckCircle className='h-4 w-4' />
+            <AlertTitle>Verification Email Sent</AlertTitle>
+            <AlertDescription>
+              Please check your email inbox for the verification link.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <form onSubmit={onSubmit} className='space-y-4'>
           {error && (
-            <div className='p-3 text-sm text-red-500 bg-red-50 rounded-md'>
-              {error}
+            <Alert variant='destructive'>
+              <AlertCircle className='h-4 w-4' />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {needsVerification && !verificationSent && (
+            <div className='p-4 border border-yellow-200 bg-yellow-50 rounded-lg space-y-3'>
+              <p className='text-sm text-yellow-800'>
+                Your email address hasn&apos;t been verified yet.
+              </p>
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={resendVerification}
+                disabled={isLoading}
+              >
+                Resend Verification Email
+              </Button>
             </div>
           )}
 
@@ -67,12 +148,19 @@ export function LoginForm() {
               type='text'
               placeholder='email@example.com'
               required
+              disabled={isLoading}
             />
           </div>
 
           <div className='space-y-2'>
             <Label htmlFor='password'>Password</Label>
-            <Input id='password' name='password' type='password' required />
+            <Input
+              id='password'
+              name='password'
+              type='password'
+              required
+              disabled={isLoading}
+            />
           </div>
 
           <Button type='submit' className='w-full' disabled={isLoading}>
