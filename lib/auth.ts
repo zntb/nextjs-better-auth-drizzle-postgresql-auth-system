@@ -11,6 +11,7 @@ import {
 } from './auth/email';
 
 export const auth = betterAuth({
+  appName: 'Next.js Auth System', // Provide app name for 2FA issuer
   database: drizzleAdapter(db, {
     provider: 'pg',
     schema,

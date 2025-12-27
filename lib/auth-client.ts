@@ -8,7 +8,15 @@ import {
 
 export const authClient = createAuthClient({
   baseURL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'http://localhost:3000',
-  plugins: [magicLinkClient(), twoFactorClient(), usernameClient()],
+  plugins: [
+    magicLinkClient(),
+    twoFactorClient({
+      onTwoFactorRedirect() {
+        window.location.href = '/2fa';
+      },
+    }),
+    usernameClient(),
+  ],
 });
 
 export const { signIn, signUp, signOut, useSession, getSession } = authClient;

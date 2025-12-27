@@ -41,7 +41,7 @@ export function LoginForm() {
     setUserEmail(email);
 
     try {
-      await signIn.email(
+      const result = await signIn.email(
         {
           email,
           password,
@@ -56,7 +56,13 @@ export function LoginForm() {
               setError(ctx.error.message || 'Invalid credentials');
             }
           },
-          onSuccess: () => {
+          onSuccess: ctx => {
+            // Check if 2FA is required
+            if (ctx.data?.twoFactorRedirect) {
+              // This will be handled by the auth client's onTwoFactorRedirect callback
+              return;
+            }
+            // Normal success flow
             router.push('/');
             router.refresh();
           },
