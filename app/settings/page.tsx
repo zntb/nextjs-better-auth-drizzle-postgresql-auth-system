@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // app/settings/page.tsx
 'use client';
@@ -945,14 +946,14 @@ export default function SettingsPage() {
           }
         }}
       >
-        <DialogContent className='max-w-2xl'>
-          <DialogHeader>
+        <DialogContent className='max-w-2xl max-h-[90vh] overflow-hidden flex flex-col'>
+          <DialogHeader className='flex-shrink-0'>
             <DialogTitle>Set Up Two-Factor Authentication</DialogTitle>
             <DialogDescription>
               Follow these steps to secure your account with 2FA
             </DialogDescription>
           </DialogHeader>
-          <div className='space-y-6'>
+          <div className='flex-1 overflow-y-auto space-y-6 pr-2'>
             {error && (
               <Alert variant='destructive'>
                 <AlertCircle className='h-4 w-4' />
@@ -1067,7 +1068,7 @@ export default function SettingsPage() {
                 Enter the 6-digit code from your authenticator app to complete
                 setup
               </p>
-              <div className='space-y-2 ml-10'>
+              <div className='space-y-2 ml-10 mb-5'>
                 <Label htmlFor='verification-code'>Verification Code</Label>
                 <Input
                   id='verification-code'
@@ -1084,7 +1085,7 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className='flex-shrink-0 mt-6'>
             <Button
               variant='outline'
               onClick={() => {
