@@ -7,6 +7,7 @@ import { getCurrentUser } from './auth-actions';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
 import { sendNotificationIfEnabled } from '@/lib/auth/email';
+import { normalizeUserForNotifications } from '@/lib/utils';
 
 export async function updateProfile(data: {
   name?: string;
@@ -49,7 +50,7 @@ export async function updateProfile(data: {
     // Send security notification if username was changed and user has security alerts enabled
     if (data.username && data.username !== currentUserData.username) {
       await sendNotificationIfEnabled(
-        currentUser,
+        normalizeUserForNotifications(currentUser),
         'security',
         'username_changed',
         data.username,
@@ -91,7 +92,7 @@ export async function changePassword(
 
     // Send security notification that password has been changed
     await sendNotificationIfEnabled(
-      currentUser,
+      normalizeUserForNotifications(currentUser),
       'security',
       'password_changed',
     );

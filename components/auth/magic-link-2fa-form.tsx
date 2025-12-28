@@ -27,7 +27,6 @@ interface MagicLink2FAFormProps {
 export function MagicLink2FAForm({
   email,
   deviceName,
-  deviceId,
   onBack,
   onSubmit,
   isLoading,

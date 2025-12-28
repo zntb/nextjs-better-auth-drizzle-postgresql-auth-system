@@ -12,6 +12,7 @@ import {
   sendNotificationIfEnabled,
   sendNotificationPreferenceUpdateEmail,
 } from '@/lib/auth/email';
+import { normalizeUserForNotifications } from '@/lib/utils';
 
 export async function toggleEmailPassword(enabled: boolean) {
   try {
@@ -27,7 +28,7 @@ export async function toggleEmailPassword(enabled: boolean) {
 
     // Send security notification if user has security alerts enabled
     await sendNotificationIfEnabled(
-      currentUser,
+      normalizeUserForNotifications(currentUser),
       'security',
       enabled ? 'password_auth_enabled' : 'password_auth_disabled',
     );
@@ -81,7 +82,11 @@ export async function confirmTwoFactorEnabled() {
     }
 
     // Send security notification that 2FA has been enabled
-    await sendNotificationIfEnabled(currentUser, 'security', '2fa_enabled');
+    await sendNotificationIfEnabled(
+      normalizeUserForNotifications(currentUser),
+      'security',
+      '2fa_enabled',
+    );
 
     return { success: true };
   } catch (error) {
@@ -136,7 +141,11 @@ export async function disableTwoFactor(password: string) {
     revalidatePath('/profile');
 
     // Send security notification that 2FA has been disabled
-    await sendNotificationIfEnabled(currentUser, 'security', '2fa_disabled');
+    await sendNotificationIfEnabled(
+      normalizeUserForNotifications(currentUser),
+      'security',
+      '2fa_disabled',
+    );
 
     return { success: true };
   } catch (error) {
@@ -209,7 +218,7 @@ export async function updateDefaultLoginMethod(method: 'email' | 'username') {
 
     // Send security notification if user has security alerts enabled
     await sendNotificationIfEnabled(
-      currentUser,
+      normalizeUserForNotifications(currentUser),
       'security',
       'login_method_changed',
       method,

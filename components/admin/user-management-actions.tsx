@@ -27,20 +27,8 @@ import {
   banUser,
   unbanUser,
 } from '@/actions/admin-actions';
+import type { User } from '@/actions/admin-actions';
 import { toast } from 'sonner';
-
-interface User {
-  id: string;
-  name: string | null;
-  email: string;
-  username: string | null;
-  role: string | null;
-  blocked: boolean;
-  banned: boolean | null;
-  banReason: string | null;
-  banExpires: Date | null;
-  twoFactorEnabled: boolean;
-}
 
 interface UserManagementActionsProps {
   user: User;
@@ -128,7 +116,7 @@ export function UserManagementActions({
 
         <DropdownMenuSeparator />
 
-        {user.blocked ? (
+        {user.blocked === true ? (
           <DropdownMenuItem
             onClick={() => handleAction('unblock')}
             className='text-green-600'

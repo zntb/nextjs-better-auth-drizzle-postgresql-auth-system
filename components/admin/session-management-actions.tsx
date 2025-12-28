@@ -33,7 +33,6 @@ interface SessionManagementActionsProps {
 
 export function SessionManagementActions({
   session,
-  userId,
 }: SessionManagementActionsProps) {
   const [isLoading, setIsLoading] = useState(false);
 

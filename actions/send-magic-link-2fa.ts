@@ -48,6 +48,7 @@ export async function sendMagicLinkWith2FA(
     }
 
     // Send the magic link
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { data, error } = await authClient.signIn.magicLink({
       email,
       name: name || undefined,
