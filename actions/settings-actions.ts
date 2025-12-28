@@ -6,7 +6,7 @@ import { user, twoFactor, trustedDevice } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUser } from './auth-actions';
 import { auth } from '@/lib/auth';
-import { headers } from 'next/headers';
+import { headers, cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 
 export async function toggleEmailPassword(enabled: boolean) {
@@ -79,6 +79,28 @@ export async function disableTwoFactor(password: string) {
 
     if (!result) {
       return { error: 'Failed to disable 2FA. Please check your password.' };
+    }
+
+    // Clear trusted device cookie to ensure all sessions require 2FA again
+    const cookieStore = await cookies();
+    cookieStore.delete('better-auth.trust_device');
+    cookieStore.delete({
+      name: 'better-auth.trust_device',
+      path: '/',
+    });
+
+    // Also clear any other potential trust-related cookies
+    const allCookies = cookieStore.getAll();
+    const trustCookies = allCookies.filter(
+      c => c.name.includes('trust') || c.name.includes('2fa_trust'),
+    );
+
+    for (const cookie of trustCookies) {
+      cookieStore.delete(cookie.name);
+      cookieStore.delete({
+        name: cookie.name,
+        path: '/',
+      });
     }
 
     // Revalidate paths
