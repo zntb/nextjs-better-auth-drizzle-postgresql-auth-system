@@ -18,8 +18,8 @@ export async function proxy(request: NextRequest) {
   // IMPORTANT: Don't redirect from the 2FA page
   const skip2FACheck = ['/2fa', '/debug-2fa'];
 
-  // Check if user is blocked
-  if (session?.user?.blocked) {
+  // Check if user is blocked (but don't redirect if already on blocked page)
+  if (session?.user?.blocked && !pathname.startsWith('/blocked')) {
     return NextResponse.redirect(new URL('/blocked', request.url));
   }
 
