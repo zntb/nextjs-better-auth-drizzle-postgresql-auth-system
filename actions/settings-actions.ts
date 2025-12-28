@@ -8,6 +8,10 @@ import { getCurrentUser } from './auth-actions';
 import { auth } from '@/lib/auth';
 import { headers, cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import {
+  sendNotificationIfEnabled,
+  sendNotificationPreferenceUpdateEmail,
+} from '@/lib/auth/email';
 
 export async function toggleEmailPassword(enabled: boolean) {
   try {
@@ -20,6 +24,13 @@ export async function toggleEmailPassword(enabled: boolean) {
       .update(user)
       .set({ emailPasswordEnabled: enabled })
       .where(eq(user.id, currentUser.id));
+
+    // Send security notification if user has security alerts enabled
+    await sendNotificationIfEnabled(
+      currentUser,
+      'security',
+      enabled ? 'password_auth_enabled' : 'password_auth_disabled',
+    );
 
     return { success: true };
   } catch (error) {
@@ -59,6 +70,23 @@ export async function enableTwoFactor(password: string) {
       return { error: 'Invalid password. Please try again.' };
     }
     return { error: 'Failed to enable 2FA' };
+  }
+}
+
+export async function confirmTwoFactorEnabled() {
+  try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return { error: 'Unauthorized' };
+    }
+
+    // Send security notification that 2FA has been enabled
+    await sendNotificationIfEnabled(currentUser, 'security', '2fa_enabled');
+
+    return { success: true };
+  } catch (error) {
+    console.error('Confirm 2FA enabled error:', error);
+    return { error: 'Failed to confirm 2FA enablement' };
   }
 }
 
@@ -106,6 +134,9 @@ export async function disableTwoFactor(password: string) {
     // Revalidate paths
     revalidatePath('/settings');
     revalidatePath('/profile');
+
+    // Send security notification that 2FA has been disabled
+    await sendNotificationIfEnabled(currentUser, 'security', '2fa_disabled');
 
     return { success: true };
   } catch (error) {
@@ -175,6 +206,14 @@ export async function updateDefaultLoginMethod(method: 'email' | 'username') {
       .update(user)
       .set({ defaultLoginMethod: method })
       .where(eq(user.id, currentUser.id));
+
+    // Send security notification if user has security alerts enabled
+    await sendNotificationIfEnabled(
+      currentUser,
+      'security',
+      'login_method_changed',
+      method,
+    );
 
     return { success: true };
   } catch (error) {
@@ -304,5 +343,62 @@ export async function toggleCurrentDeviceTrust() {
   } catch (error) {
     console.error('Toggle current device trust error:', error);
     return { error: 'Failed to toggle device trust' };
+  }
+}
+
+export async function updateNotificationPreferences(
+  emailNotificationsEnabled: boolean,
+  securityAlertsEnabled: boolean,
+) {
+  try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return { error: 'Unauthorized' };
+    }
+
+    // Get current user data to check what changed
+    const currentUserData = await db.query.user.findFirst({
+      where: eq(user.id, currentUser.id),
+    });
+
+    if (!currentUserData) {
+      return { error: 'User not found' };
+    }
+
+    // Update the notification preferences
+    await db
+      .update(user)
+      .set({
+        emailNotificationsEnabled,
+        securityAlertsEnabled,
+        updatedAt: new Date(),
+      })
+      .where(eq(user.id, currentUser.id));
+
+    // Send notification preference update emails if preferences were changed
+    if (
+      currentUserData.emailNotificationsEnabled !== emailNotificationsEnabled
+    ) {
+      await sendNotificationPreferenceUpdateEmail(
+        currentUser.email,
+        currentUser.name,
+        'email_notifications',
+        emailNotificationsEnabled,
+      );
+    }
+
+    if (currentUserData.securityAlertsEnabled !== securityAlertsEnabled) {
+      await sendNotificationPreferenceUpdateEmail(
+        currentUser.email,
+        currentUser.name,
+        'security_alerts',
+        securityAlertsEnabled,
+      );
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Update notification preferences error:', error);
+    return { error: 'Failed to update notification preferences' };
   }
 }

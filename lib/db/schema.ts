@@ -28,6 +28,12 @@ export const user = pgTable('user', {
     .notNull()
     .default(true),
   defaultLoginMethod: text('default_login_method').notNull().default('email'),
+  emailNotificationsEnabled: boolean('email_notifications_enabled')
+    .notNull()
+    .default(true),
+  securityAlertsEnabled: boolean('security_alerts_enabled')
+    .notNull()
+    .default(true),
 });
 
 export const session = pgTable(

@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { getCurrentUser } from './auth-actions';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
+import { sendNotificationIfEnabled } from '@/lib/auth/email';
 
 export async function updateProfile(data: {
   name?: string;
@@ -15,6 +16,15 @@ export async function updateProfile(data: {
     const currentUser = await getCurrentUser();
     if (!currentUser) {
       return { error: 'Unauthorized' };
+    }
+
+    // Get current user data to check if username is changing
+    const currentUserData = await db.query.user.findFirst({
+      where: eq(user.id, currentUser.id),
+    });
+
+    if (!currentUserData) {
+      return { error: 'User not found' };
     }
 
     // Check if username is already taken
@@ -35,6 +45,16 @@ export async function updateProfile(data: {
         updatedAt: new Date(),
       })
       .where(eq(user.id, currentUser.id));
+
+    // Send security notification if username was changed and user has security alerts enabled
+    if (data.username && data.username !== currentUserData.username) {
+      await sendNotificationIfEnabled(
+        currentUser,
+        'security',
+        'username_changed',
+        data.username,
+      );
+    }
 
     return { success: true };
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -68,6 +88,13 @@ export async function changePassword(
         error: 'Current password is incorrect or failed to change password',
       };
     }
+
+    // Send security notification that password has been changed
+    await sendNotificationIfEnabled(
+      currentUser,
+      'security',
+      'password_changed',
+    );
 
     return { success: true };
   } catch (error: unknown) {

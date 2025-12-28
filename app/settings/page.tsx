@@ -60,6 +60,8 @@ import {
   deleteAccount,
   getCurrentDeviceTrustStatus,
   toggleCurrentDeviceTrust,
+  updateNotificationPreferences,
+  confirmTwoFactorEnabled,
 } from '@/actions/settings-actions';
 import { Input } from '@/components/ui/input';
 
@@ -89,6 +91,8 @@ interface ExtendedUser {
   twoFactorEnabled?: boolean | null;
   emailPasswordEnabled?: boolean | null;
   defaultLoginMethod?: string | null;
+  emailNotificationsEnabled?: boolean | null;
+  securityAlertsEnabled?: boolean | null;
   [key: string]: unknown;
 }
 
@@ -177,6 +181,13 @@ export default function SettingsPage() {
             | 'email'
             | 'username') ?? 'email',
         twoFactorEnabled: session.user.twoFactorEnabled || false,
+        notifications: {
+          ...prev.notifications,
+          email:
+            (session.user as ExtendedUser).emailNotificationsEnabled ?? true,
+          security:
+            (session.user as ExtendedUser).securityAlertsEnabled ?? true,
+        },
       }));
       loadTrustedDevices();
       loadCurrentDeviceTrustStatus();
@@ -373,6 +384,9 @@ export default function SettingsPage() {
         setSettings(prev => ({ ...prev, twoFactorEnabled: true }));
         setSuccess('Two-factor authentication enabled successfully! 🎉');
 
+        // Send notification that 2FA has been enabled
+        await confirmTwoFactorEnabled();
+
         // Close dialog after showing success
         setTimeout(() => {
           setShow2FADialog(false);
@@ -461,6 +475,64 @@ export default function SettingsPage() {
     } finally {
       setIsLoading(false);
       setShowDeleteDialog(false);
+    }
+  };
+
+  const handleNotificationPreferenceChange = async (
+    type: 'email' | 'security',
+    enabled: boolean,
+  ) => {
+    setIsLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const emailNotificationsEnabled =
+        type === 'email' ? enabled : settings.notifications.email;
+      const securityAlertsEnabled =
+        type === 'security' ? enabled : settings.notifications.security;
+
+      const result = await updateNotificationPreferences(
+        emailNotificationsEnabled,
+        securityAlertsEnabled,
+      );
+
+      if (result.error) {
+        setError(result.error);
+        // Revert the switch state on error
+        setSettings(prev => ({
+          ...prev,
+          notifications: {
+            ...prev.notifications,
+            [type]: !enabled,
+          },
+        }));
+      } else {
+        setSettings(prev => ({
+          ...prev,
+          notifications: {
+            ...prev.notifications,
+            [type]: enabled,
+          },
+        }));
+        setSuccess(
+          `${type === 'email' ? 'Email notifications' : 'Security alerts'} ${
+            enabled ? 'enabled' : 'disabled'
+          }`,
+        );
+      }
+    } catch (err) {
+      setError('Failed to update notification preferences');
+      // Revert the switch state on error
+      setSettings(prev => ({
+        ...prev,
+        notifications: {
+          ...prev.notifications,
+          [type]: !enabled,
+        },
+      }));
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -666,14 +738,9 @@ export default function SettingsPage() {
                   <Switch
                     checked={settings.notifications.email}
                     onCheckedChange={checked =>
-                      setSettings(prev => ({
-                        ...prev,
-                        notifications: {
-                          ...prev.notifications,
-                          email: checked,
-                        },
-                      }))
+                      handleNotificationPreferenceChange('email', checked)
                     }
+                    disabled={isLoading}
                   />
                 </div>
 
@@ -705,14 +772,9 @@ export default function SettingsPage() {
                   <Switch
                     checked={settings.notifications.security}
                     onCheckedChange={checked =>
-                      setSettings(prev => ({
-                        ...prev,
-                        notifications: {
-                          ...prev.notifications,
-                          security: checked,
-                        },
-                      }))
+                      handleNotificationPreferenceChange('security', checked)
                     }
+                    disabled={isLoading}
                   />
                 </div>
 

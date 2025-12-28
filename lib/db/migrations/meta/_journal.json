@@ -12,8 +12,15 @@
     {
       "idx": 1,
       "version": "7",
-      "when": 1766825982469,
-      "tag": "0001_add_default_login_method",
+      "when": 1766917214285,
+      "tag": "0002_add_notification_preferences",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1766917896573,
+      "tag": "0003_update_existing_user_notification_preferences",
       "breakpoints": true
     }
   ]
