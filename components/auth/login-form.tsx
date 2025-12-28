@@ -15,7 +15,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { CheckCircle, AlertCircle, Info } from 'lucide-react';
+import { CheckCircle, AlertCircle } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { getUserLoginMethod } from '@/actions/get-user-login-method';
 
@@ -69,6 +69,16 @@ export function LoginForm() {
         addLog('❌ User not found');
         setIsLoading(false);
         setError('Invalid credentials');
+        return;
+      }
+
+      // Check if password authentication is disabled
+      if (defaultLoginMethod === 'password_disabled') {
+        addLog('❌ Password authentication is disabled for this user');
+        setIsLoading(false);
+        setError(
+          'Password authentication is disabled for this account. Please use magic link login instead.',
+        );
         return;
       }
 

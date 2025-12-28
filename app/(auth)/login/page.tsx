@@ -35,10 +35,16 @@ export default function LoginPage() {
         <SocialAuthButtons />
 
         <div className='text-center text-sm space-y-2'>
-          <div>
-            <Link href='/magic-link' className='text-blue-600 hover:underline'>
-              Sign in with magic link
+          <div className='p-3 bg-blue-50 border border-blue-200 rounded-lg mb-3'>
+            <Link
+              href='/magic-link'
+              className='text-blue-600 hover:underline font-medium'
+            >
+              🔗 Sign in with magic link instead
             </Link>
+            <p className='text-xs text-blue-600 mt-1'>
+              Passwordless authentication for enhanced security
+            </p>
           </div>
           <div>
             Don&apos;t have an account?{' '}
