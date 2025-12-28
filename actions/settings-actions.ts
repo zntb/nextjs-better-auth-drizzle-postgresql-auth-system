@@ -46,50 +46,19 @@ export async function enableTwoFactor(password: string) {
       return { error: 'Failed to enable 2FA. Please check your password.' };
     }
 
-    // 2FA is enabled but requires verification
-    // Return the TOTP URI and backup codes, and indicate that verification is needed
+    // Return the TOTP URI and backup codes for user to scan and verify
+    // 2FA is NOT fully enabled yet - user must verify with a code
     return {
       success: true,
-      needsVerification: true,
       totpURI: result.totpURI,
       backupCodes: result.backupCodes,
     };
   } catch (error) {
     console.error('Enable 2FA error:', error);
+    if (error instanceof Error && error.message.includes('Invalid password')) {
+      return { error: 'Invalid password. Please try again.' };
+    }
     return { error: 'Failed to enable 2FA' };
-  }
-}
-
-export async function verifyTwoFactor(code: string) {
-  try {
-    const result = await auth.api.verifyTOTP({
-      body: {
-        code,
-      },
-      headers: await headers(),
-    });
-
-    if (!result) {
-      return { error: 'Invalid verification code' };
-    }
-
-    // After successful verification, update the user in the database
-    const currentUser = await getCurrentUser();
-    if (currentUser) {
-      await db
-        .update(user)
-        .set({ twoFactorEnabled: true })
-        .where(eq(user.id, currentUser.id));
-    }
-
-    // Revalidate paths to refresh the session
-    revalidatePath('/settings');
-    revalidatePath('/profile');
-
-    return { success: true };
-  } catch (error) {
-    console.error('Verify 2FA error:', error);
-    return { error: 'Failed to verify 2FA code' };
   }
 }
 
@@ -112,12 +81,6 @@ export async function disableTwoFactor(password: string) {
       return { error: 'Failed to disable 2FA. Please check your password.' };
     }
 
-    // Update the database
-    await db
-      .update(user)
-      .set({ twoFactorEnabled: false })
-      .where(eq(user.id, currentUser.id));
-
     // Revalidate paths
     revalidatePath('/settings');
     revalidatePath('/profile');
@@ -125,6 +88,9 @@ export async function disableTwoFactor(password: string) {
     return { success: true };
   } catch (error) {
     console.error('Disable 2FA error:', error);
+    if (error instanceof Error && error.message.includes('Invalid password')) {
+      return { error: 'Invalid password. Please try again.' };
+    }
     return { error: 'Failed to disable 2FA' };
   }
 }

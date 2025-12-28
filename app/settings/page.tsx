@@ -1,6 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-// app/settings/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -47,7 +46,6 @@ import {
   Upload,
   Eye,
   Unlock,
-  QrCode,
   Copy,
 } from 'lucide-react';
 import { ChangePasswordForm } from '@/components/auth/change-password-form';
@@ -55,7 +53,6 @@ import {
   toggleEmailPassword,
   enableTwoFactor,
   disableTwoFactor,
-  verifyTwoFactor,
   getTrustedDevices,
   removeTrustedDevice,
   deleteAccount,
@@ -121,7 +118,6 @@ export default function SettingsPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showChangePasswordDialog, setShowChangePasswordDialog] =
     useState(false);
-  const [qrCode, setQrCode] = useState('');
   const [show2FADialog, setShow2FADialog] = useState(false);
   const [show2FAPasswordDialog, setShow2FAPasswordDialog] = useState(false);
   const [totpURI, setTotpURI] = useState('');
@@ -152,15 +148,6 @@ export default function SettingsPage() {
       timezone: 'UTC',
     },
   });
-
-  useEffect(() => {
-    const checkStatus = async () => {
-      const { check2FAStatus } = await import('@/actions/check-2fa-status');
-      const status = await check2FAStatus();
-      console.log('2FA Status:', status);
-    };
-    checkStatus();
-  }, []);
 
   useEffect(() => {
     if (!isPending && !session?.user) {
@@ -253,6 +240,7 @@ export default function SettingsPage() {
 
     setIsLoading(true);
     setError('');
+    setSuccess('');
 
     try {
       if (settings.twoFactorEnabled) {
@@ -261,22 +249,29 @@ export default function SettingsPage() {
         if (result.error) {
           setError(result.error);
         } else {
-          setSettings(prev => ({ ...prev, twoFactorEnabled: false }));
-          setSuccess('Two-factor authentication disabled');
+          // Force session refresh
+          const { data: newSession } = await authClient.getSession();
+          setSettings(prev => ({
+            ...prev,
+            twoFactorEnabled: newSession?.user?.twoFactorEnabled || false,
+          }));
+          setSuccess('Two-factor authentication disabled successfully!');
           setShow2FAPasswordDialog(false);
           setTwoFactorPassword('');
         }
       } else {
-        // Enable 2FA
+        // Enable 2FA (creates secret but doesn't fully enable yet)
         const result = await enableTwoFactor(twoFactorPassword);
         if (result.error) {
           setError(result.error);
         } else {
+          // Show setup dialog - user must verify before 2FA is fully enabled
           setTotpURI(result.totpURI || '');
           setBackupCodes(result.backupCodes || []);
           setShow2FAPasswordDialog(false);
-          setShow2FADialog(true); // Show the setup dialog
+          setShow2FADialog(true);
           setTwoFactorPassword('');
+          setError('');
         }
       }
     } catch (err) {
@@ -294,32 +289,55 @@ export default function SettingsPage() {
 
     setIsVerifying(true);
     setError('');
+    setSuccess('');
 
     try {
-      const result = await verifyTwoFactor(verificationCode);
-      if (result.error) {
-        setError(result.error);
-      } else {
-        // Force a session refresh after verification
-        const { data: newSession } = await authClient.getSession();
+      // Use CLIENT-SIDE verification (not server-side API)
+      const result = await authClient.twoFactor.verifyTotp({
+        code: verificationCode,
+      });
 
-        if (newSession?.user?.twoFactorEnabled) {
-          setSettings(prev => ({ ...prev, twoFactorEnabled: true }));
-          setSuccess('Two-factor authentication enabled successfully!');
-          setTimeout(() => {
-            setShow2FADialog(false);
-            setVerificationCode('');
-            setTotpURI('');
-            setBackupCodes([]);
-          }, 2000);
-        } else {
-          setError(
-            '2FA verification succeeded but status not updated. Please refresh the page.',
-          );
-        }
+      if (result.error) {
+        setError(
+          result.error.message ||
+            'Invalid verification code. Please try again.',
+        );
+        setIsVerifying(false);
+        return;
+      }
+
+      // Success! 2FA is now fully enabled
+      setSuccess('Verifying your setup...');
+
+      // Wait for backend to process
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Refresh session to get updated user data
+      const { data: newSession } = await authClient.getSession();
+
+      if (newSession?.user?.twoFactorEnabled) {
+        setSettings(prev => ({ ...prev, twoFactorEnabled: true }));
+        setSuccess('Two-factor authentication enabled successfully! 🎉');
+
+        // Close dialog after showing success
+        setTimeout(() => {
+          setShow2FADialog(false);
+          setVerificationCode('');
+          setTotpURI('');
+          setBackupCodes([]);
+          setError('');
+          setSuccess('');
+        }, 2000);
+      } else {
+        // Session might not be immediately updated
+        setSuccess('2FA enabled! Refreshing...');
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
       }
     } catch (err) {
-      setError('Failed to verify code');
+      console.error('Verification error:', err);
+      setError('Failed to verify code. Please try again.');
     } finally {
       setIsVerifying(false);
     }
@@ -961,6 +979,7 @@ export default function SettingsPage() {
             setTotpURI('');
             setBackupCodes([]);
             setError('');
+            setSuccess('');
           }
         }}
       >
@@ -968,7 +987,7 @@ export default function SettingsPage() {
           <DialogHeader className='flex-shrink-0'>
             <DialogTitle>Set Up Two-Factor Authentication</DialogTitle>
             <DialogDescription>
-              Follow these steps to secure your account with 2FA
+              Complete these steps to secure your account
             </DialogDescription>
           </DialogHeader>
           <div className='flex-1 overflow-y-auto space-y-6 pr-2'>
@@ -1052,7 +1071,10 @@ export default function SettingsPage() {
                 <div className='space-y-2 ml-10'>
                   <div className='grid grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg border'>
                     {backupCodes.map((code, index) => (
-                      <code key={index} className='text-xs'>
+                      <code
+                        key={index}
+                        className='text-xs p-1 bg-background rounded'
+                      >
                         {code}
                       </code>
                     ))}
@@ -1070,11 +1092,30 @@ export default function SettingsPage() {
                     <Copy className='h-4 w-4 mr-2' />
                     Copy All Backup Codes
                   </Button>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='w-full'
+                    onClick={() => {
+                      const blob = new Blob([backupCodes.join('\n')], {
+                        type: 'text/plain',
+                      });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = '2fa-backup-codes.txt';
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                  >
+                    <Download className='h-4 w-4 mr-2' />
+                    Download Backup Codes
+                  </Button>
                 </div>
               </div>
             )}
 
-            {/* Step 3: Verify */}
+            {/* Step 3: Verify Setup */}
             <div className='space-y-3'>
               <div className='flex items-center space-x-2'>
                 <div className='flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-semibold'>
@@ -1098,10 +1139,24 @@ export default function SettingsPage() {
                   }
                   placeholder='000000'
                   disabled={isVerifying}
-                  className='text-center text-lg tracking-widest'
+                  className='text-center text-lg tracking-widest font-mono'
                 />
+                <p className='text-xs text-muted-foreground'>
+                  This confirms you've scanned the QR code correctly
+                </p>
               </div>
             </div>
+
+            {/* Important Notice */}
+            <Alert className='ml-10'>
+              <Shield className='h-4 w-4' />
+              <AlertTitle>Important</AlertTitle>
+              <AlertDescription>
+                Make sure you've saved your backup codes before completing
+                setup. You'll need them if you lose access to your authenticator
+                app.
+              </AlertDescription>
+            </Alert>
           </div>
           <DialogFooter className='flex-shrink-0 mt-6'>
             <Button
@@ -1112,6 +1167,7 @@ export default function SettingsPage() {
                 setTotpURI('');
                 setBackupCodes([]);
                 setError('');
+                setSuccess('');
               }}
               disabled={isVerifying}
             >
@@ -1121,7 +1177,17 @@ export default function SettingsPage() {
               onClick={handleVerifyTOTP}
               disabled={isVerifying || verificationCode.length !== 6}
             >
-              {isVerifying ? 'Verifying...' : 'Complete Setup'}
+              {isVerifying ? (
+                <>
+                  <div className='h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2' />
+                  Verifying...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className='h-4 w-4 mr-2' />
+                  Complete Setup
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

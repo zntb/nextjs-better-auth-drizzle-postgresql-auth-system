@@ -11,7 +11,7 @@ import {
 } from './auth/email';
 
 export const auth = betterAuth({
-  appName: 'Next.js Auth System', // Provide app name for 2FA issuer
+  appName: 'Next.js Auth System',
   database: drizzleAdapter(db, {
     provider: 'pg',
     schema,
@@ -25,8 +25,6 @@ export const auth = betterAuth({
   },
   emailVerification: {
     sendVerificationEmail: async ({ user, url }) => {
-      // The 'url' parameter from Better Auth contains the full verification URL
-      // Format: /api/auth/verify-email?token=xxx&callbackURL=xxx
       await sendVerificationEmail(user.email, url);
     },
     sendOnSignUp: true,
@@ -56,7 +54,7 @@ export const auth = betterAuth({
       sendMagicLink: async ({ email, url }) => {
         await sendMagicLinkEmail(email, url);
       },
-      expiresIn: 600, // 10 minutes
+      expiresIn: 600,
       disableSignUp: false,
     }),
     admin(),
@@ -67,8 +65,8 @@ export const auth = betterAuth({
   ],
   trustedOrigins: [process.env.BETTER_AUTH_URL!],
   session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24, // 1 day
+    expiresIn: 60 * 60 * 24 * 7,
+    updateAge: 60 * 60 * 24,
   },
   user: {
     additionalFields: {
