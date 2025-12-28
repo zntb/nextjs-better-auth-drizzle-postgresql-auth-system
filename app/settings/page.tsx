@@ -887,28 +887,6 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent className='space-y-6'>
                 <div className='space-y-2'>
-                  <Label className='text-base'>Theme</Label>
-                  <Select
-                    value={settings.appearance.theme}
-                    onValueChange={(value: 'light' | 'dark' | 'system') =>
-                      setSettings(prev => ({
-                        ...prev,
-                        appearance: { ...prev.appearance, theme: value },
-                      }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='light'>Light</SelectItem>
-                      <SelectItem value='dark'>Dark</SelectItem>
-                      <SelectItem value='system'>System</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className='space-y-2'>
                   <Label className='text-base'>Language</Label>
                   <Select
                     value={settings.appearance.language}
