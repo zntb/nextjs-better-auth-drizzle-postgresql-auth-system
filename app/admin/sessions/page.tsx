@@ -1,4 +1,5 @@
 // app/admin/sessions/page.tsx
+import React from 'react';
 import { getCurrentUser } from '@/actions/auth-actions';
 import { db } from '@/lib/db';
 import { user, session } from '@/lib/db/schema';
@@ -20,10 +21,22 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
 import { Search, Shield, Activity, Clock } from 'lucide-react';
 import { SessionManagementActions } from '@/components/admin/session-management-actions';
 
-export default async function AdminSessionsPage() {
+export default async function AdminSessionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const currentUser = await getCurrentUser();
 
   if (!currentUser || currentUser.role !== 'admin') {
@@ -41,7 +54,14 @@ export default async function AdminSessionsPage() {
     );
   }
 
+  // Await searchParams in Next.js 13+ app router
+  const resolvedSearchParams = await searchParams;
+
   // Get sessions data
+  const currentPage = parseInt(resolvedSearchParams.page as string) || 1;
+  const pageSize = parseInt(resolvedSearchParams.pageSize as string) || 10; // Set to 10 as default
+  const offset = (currentPage - 1) * pageSize;
+
   const sessionsData = await db
     .select({
       session: session,
@@ -54,33 +74,42 @@ export default async function AdminSessionsPage() {
     .from(session)
     .leftJoin(user, eq(session.userId, user.id))
     .orderBy(desc(session.createdAt))
-    .limit(100);
+    .limit(pageSize)
+    .offset(offset);
 
   // Calculate session statistics
   const now = new Date();
   const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-  const [totalSessions, activeSessions, sessions24h, sessions7d, uniqueUsers] =
-    await Promise.all([
-      db.select({ count: count() }).from(session),
-      db
-        .select({ count: count() })
-        .from(session)
-        .where(gte(session.createdAt, last24Hours)),
-      db
-        .select({ count: count() })
-        .from(session)
-        .where(gte(session.createdAt, last24Hours)),
-      db
-        .select({ count: count() })
-        .from(session)
-        .where(gte(session.createdAt, last7Days)),
-      db.select({ count: count() }).from(user),
-    ]);
+  const [
+    totalSessionsCount,
+    activeSessions,
+    sessions24h,
+    sessions7d,
+    uniqueUsers,
+  ] = await Promise.all([
+    db.select({ count: count() }).from(session),
+    db
+      .select({ count: count() })
+      .from(session)
+      .where(gte(session.createdAt, last24Hours)),
+    db
+      .select({ count: count() })
+      .from(session)
+      .where(gte(session.createdAt, last24Hours)),
+    db
+      .select({ count: count() })
+      .from(session)
+      .where(gte(session.createdAt, last7Days)),
+    db.select({ count: count() }).from(user),
+  ]);
+
+  const totalSessions = totalSessionsCount[0]?.count || 0;
+  const totalPages = Math.ceil(totalSessions / pageSize);
 
   const stats = {
-    totalSessions: totalSessions[0]?.count || 0,
+    totalSessions: totalSessions,
     activeSessions: activeSessions[0]?.count || 0,
     sessions24h: sessions24h[0]?.count || 0,
     sessions7d: sessions7d[0]?.count || 0,
@@ -185,9 +214,14 @@ export default async function AdminSessionsPage() {
       {/* Sessions Table */}
       <Card>
         <CardHeader>
-          <CardTitle>All Sessions ({sessionsData.length})</CardTitle>
+          <CardTitle>All Sessions ({totalSessions})</CardTitle>
           <CardDescription>
             Recent authentication sessions across your application.
+            {totalPages > 1 && (
+              <span className='ml-2 text-xs bg-muted px-2 py-1 rounded'>
+                Page {currentPage} of {totalPages}
+              </span>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -258,6 +292,118 @@ export default async function AdminSessionsPage() {
               ))}
             </TableBody>
           </Table>
+
+          {/* Pagination - Show when there are sessions */}
+          {totalSessions > 0 && (
+            <div className='space-y-4'>
+              {/* Session info and page size selector */}
+              <div className='flex items-center justify-between space-x-2 py-4 border-t'>
+                <div className='text-sm text-muted-foreground'>
+                  <span className='font-medium'>
+                    {offset + 1}-{Math.min(offset + pageSize, totalSessions)}
+                  </span>{' '}
+                  of {totalSessions} sessions
+                  {totalPages > 1 && (
+                    <span className='ml-2 text-xs bg-muted px-2 py-1 rounded'>
+                      Page {currentPage}/{totalPages}
+                    </span>
+                  )}
+                </div>
+                <div className='flex items-center space-x-2'>
+                  <span className='text-sm text-muted-foreground'>
+                    Per page:
+                  </span>
+                  <div className='flex space-x-1'>
+                    {[10, 20, 50, 100].map(size => (
+                      <a
+                        key={size}
+                        href={`?page=1&pageSize=${size}`}
+                        className={`px-3 py-1 text-sm rounded-md border transition-colors ${
+                          pageSize === size
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-background hover:bg-muted border-border'
+                        }`}
+                      >
+                        {size}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Pagination controls */}
+              {totalPages > 1 && (
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href={`?page=${Math.max(
+                          1,
+                          currentPage - 1,
+                        )}&pageSize=${pageSize}`}
+                        className={
+                          currentPage === 1
+                            ? 'pointer-events-none opacity-50'
+                            : ''
+                        }
+                      />
+                    </PaginationItem>
+
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter(page => {
+                        // For smaller number of pages, show all pages
+                        if (totalPages <= 7) return true;
+                        // For larger numbers, show first, last, current, and adjacent pages
+                        return (
+                          page === 1 ||
+                          page === totalPages ||
+                          (page >= currentPage - 1 && page <= currentPage + 1)
+                        );
+                      })
+                      .map((page, index, array) => {
+                        // Add ellipsis if there's a gap
+                        const showEllipsis =
+                          index > 0 && page - array[index - 1] > 1;
+
+                        return (
+                          <React.Fragment key={page}>
+                            {showEllipsis && (
+                              <PaginationItem>
+                                <span className='flex size-9 items-center justify-center text-sm text-muted-foreground'>
+                                  ...
+                                </span>
+                              </PaginationItem>
+                            )}
+                            <PaginationItem>
+                              <PaginationLink
+                                href={`?page=${page}&pageSize=${pageSize}`}
+                                isActive={page === currentPage}
+                              >
+                                {page}
+                              </PaginationLink>
+                            </PaginationItem>
+                          </React.Fragment>
+                        );
+                      })}
+
+                    <PaginationItem>
+                      <PaginationNext
+                        href={`?page=${Math.min(
+                          totalPages,
+                          currentPage + 1,
+                        )}&pageSize=${pageSize}`}
+                        className={
+                          currentPage === totalPages
+                            ? 'pointer-events-none opacity-50'
+                            : ''
+                        }
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
