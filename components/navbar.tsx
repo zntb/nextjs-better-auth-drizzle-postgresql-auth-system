@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Menu, X, Search, User, Settings, LogOut } from 'lucide-react';
 import { useSession, signOut } from '@/lib/auth-client';
 import Image from 'next/image';
+import { ModeToggle } from './mode-toggle';
 
 type User = {
   id: string;
@@ -107,6 +108,10 @@ export default function Navbar() {
                 className='pl-10 bg-muted/50'
               />
             </div>
+          </div>
+
+          <div className='flex w-full justify-end'>
+            <ModeToggle />
           </div>
 
           {/* Auth Buttons / User Menu */}
