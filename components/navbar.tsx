@@ -1,3 +1,4 @@
+// components/navbar.tsx
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -8,6 +9,14 @@ import { Menu, X, Search, User, Settings, LogOut } from 'lucide-react';
 import { useSession, signOut } from '@/lib/auth-client';
 import Image from 'next/image';
 
+type User = {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+  role?: string | null;
+};
+
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -15,7 +24,7 @@ export default function Navbar() {
   // Get authentication state from better-auth
   const { data: session, isPending } = useSession();
   const isAuthenticated = !!session?.user;
-  const user = session?.user;
+  const user = session?.user as User;
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
   const toggleUserMenu = () => setIsUserMenuOpen(!isUserMenuOpen);
@@ -108,6 +117,7 @@ export default function Navbar() {
                   variant='ghost'
                   onClick={toggleUserMenu}
                   className='flex items-center space-x-3 hover:bg-accent/50 px-4 py-3 rounded-lg transition-all'
+                  disabled={isPending}
                 >
                   <div className='h-9 w-9 bg-gradient-to-br from-primary to-primary/80 rounded-full flex items-center justify-center shadow-sm overflow-hidden'>
                     {user?.image ? (
@@ -173,6 +183,25 @@ export default function Navbar() {
                           </p>
                         </div>
                       </Link>
+                      {user?.role === 'admin' && (
+                        <Link
+                          href='/admin'
+                          className='flex items-center px-4 py-3 text-sm text-popover-foreground hover:bg-accent transition-colors group'
+                          onClick={() => setIsUserMenuOpen(false)}
+                        >
+                          <div className='h-8 w-8 bg-purple-100 rounded-lg flex items-center justify-center mr-3 group-hover:bg-purple-200 transition-colors'>
+                            <span className='text-purple-600 text-sm font-bold'>
+                              A
+                            </span>
+                          </div>
+                          <div>
+                            <p className='font-medium'>Admin Panel</p>
+                            <p className='text-xs text-muted-foreground'>
+                              Manage users & system
+                            </p>
+                          </div>
+                        </Link>
+                      )}
                     </div>
                     <div className='border-t py-2'>
                       <button
@@ -323,6 +352,25 @@ export default function Navbar() {
                         </p>
                       </div>
                     </Link>
+                    {user?.role === 'admin' && (
+                      <Link
+                        href='/admin'
+                        className='flex items-center px-3 py-3 text-foreground/80 hover:text-foreground hover:bg-accent rounded-md mx-3 transition-colors'
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        <div className='h-8 w-8 bg-purple-100 rounded-lg flex items-center justify-center mr-3'>
+                          <span className='text-purple-600 text-sm font-bold'>
+                            A
+                          </span>
+                        </div>
+                        <div>
+                          <p className='font-medium'>Admin Panel</p>
+                          <p className='text-xs text-muted-foreground'>
+                            Manage users & system
+                          </p>
+                        </div>
+                      </Link>
+                    )}
                     <button
                       className='flex items-center w-full px-3 py-3 text-foreground/80 hover:text-destructive hover:bg-destructive/10 rounded-md mx-3 transition-colors text-left'
                       onClick={async () => {
