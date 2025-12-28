@@ -181,3 +181,120 @@ export async function updateDefaultLoginMethod(method: 'email' | 'username') {
     return { error: 'Failed to update default login method' };
   }
 }
+
+export async function getCurrentDeviceTrustStatus() {
+  try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return { error: 'Unauthorized' };
+    }
+
+    // Get current device information
+    const headersList = await headers();
+    const userAgent = headersList.get('user-agent') || '';
+    const forwarded = headersList.get('x-forwarded-for');
+    const realIp = headersList.get('x-real-ip');
+    const ipAddress = forwarded ? forwarded.split(',')[0] : realIp;
+
+    // Generate device ID from user agent and IP (same logic as check-2fa-and-trust.ts)
+    const deviceId = Buffer.from(`${userAgent}:${ipAddress}`).toString(
+      'base64',
+    );
+
+    // Check if this device is trusted
+    const trustedDeviceRecord = await db.query.trustedDevice.findFirst({
+      where: eq(trustedDevice.deviceId, deviceId),
+    });
+
+    // Generate device name from user agent
+    let deviceName = 'Unknown Device';
+    if (userAgent.includes('Chrome')) deviceName = 'Chrome Browser';
+    else if (userAgent.includes('Firefox')) deviceName = 'Firefox Browser';
+    else if (userAgent.includes('Safari')) deviceName = 'Safari Browser';
+    else if (userAgent.includes('Edge')) deviceName = 'Edge Browser';
+
+    return {
+      success: true,
+      isTrusted: !!trustedDeviceRecord,
+      deviceId,
+      deviceName,
+      userAgent,
+      ipAddress,
+    };
+  } catch (error) {
+    console.error('Get current device trust status error:', error);
+    return { error: 'Failed to get device trust status' };
+  }
+}
+
+export async function toggleCurrentDeviceTrust() {
+  try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return { error: 'Unauthorized' };
+    }
+
+    // Get current device information
+    const headersList = await headers();
+    const userAgent = headersList.get('user-agent') || '';
+    const forwarded = headersList.get('x-forwarded-for');
+    const realIp = headersList.get('x-real-ip');
+    const ipAddress = forwarded ? forwarded.split(',')[0] : realIp;
+
+    // Generate device ID from user agent and IP
+    const deviceId = Buffer.from(`${userAgent}:${ipAddress}`).toString(
+      'base64',
+    );
+
+    // Check if this device is currently trusted
+    const existingDevice = await db.query.trustedDevice.findFirst({
+      where: eq(trustedDevice.deviceId, deviceId),
+    });
+
+    // Generate device name from user agent
+    let deviceName = 'Unknown Device';
+    if (userAgent.includes('Chrome')) deviceName = 'Chrome Browser';
+    else if (userAgent.includes('Firefox')) deviceName = 'Firefox Browser';
+    else if (userAgent.includes('Safari')) deviceName = 'Safari Browser';
+    else if (userAgent.includes('Edge')) deviceName = 'Edge Browser';
+
+    if (existingDevice) {
+      // Device is currently trusted, so we need to remove it (turn off trust)
+      await db
+        .delete(trustedDevice)
+        .where(eq(trustedDevice.id, existingDevice.id));
+
+      // Clear trust device cookie if it exists
+      const cookieStore = await cookies();
+      cookieStore.delete('better-auth.trust_device');
+      cookieStore.delete({
+        name: 'better-auth.trust_device',
+        path: '/',
+      });
+
+      return {
+        success: true,
+        isTrusted: false,
+        message: 'Device trust disabled for current device',
+      };
+    } else {
+      // Device is not trusted, so we need to add it (turn on trust)
+      await db.insert(trustedDevice).values({
+        userId: currentUser.id,
+        deviceId,
+        deviceName,
+        userAgent,
+        ipAddress,
+      });
+
+      return {
+        success: true,
+        isTrusted: true,
+        message: 'Device trust enabled for current device',
+      };
+    }
+  } catch (error) {
+    console.error('Toggle current device trust error:', error);
+    return { error: 'Failed to toggle device trust' };
+  }
+}

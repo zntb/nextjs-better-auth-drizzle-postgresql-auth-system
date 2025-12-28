@@ -58,6 +58,8 @@ import {
   getTrustedDevices,
   removeTrustedDevice,
   deleteAccount,
+  getCurrentDeviceTrustStatus,
+  toggleCurrentDeviceTrust,
 } from '@/actions/settings-actions';
 import { Input } from '@/components/ui/input';
 
@@ -129,6 +131,11 @@ export default function SettingsPage() {
   const [verificationCode, setVerificationCode] = useState('');
   const [twoFactorPassword, setTwoFactorPassword] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
+  const [currentDeviceTrust, setCurrentDeviceTrust] = useState<{
+    isTrusted: boolean;
+    deviceName: string;
+    deviceId: string;
+  } | null>(null);
 
   // Settings state
   const [settings, setSettings] = useState<SettingsState>({
@@ -172,6 +179,7 @@ export default function SettingsPage() {
         twoFactorEnabled: session.user.twoFactorEnabled || false,
       }));
       loadTrustedDevices();
+      loadCurrentDeviceTrustStatus();
     }
   }, [session, isPending, router]);
 
@@ -208,6 +216,21 @@ export default function SettingsPage() {
       }
     } catch (error) {
       console.error('Failed to load trusted devices:', error);
+    }
+  };
+
+  const loadCurrentDeviceTrustStatus = async () => {
+    try {
+      const result = await getCurrentDeviceTrustStatus();
+      if (result.success) {
+        setCurrentDeviceTrust({
+          isTrusted: result.isTrusted,
+          deviceName: result.deviceName,
+          deviceId: result.deviceId,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load current device trust status:', error);
     }
   };
 
@@ -394,6 +417,36 @@ export default function SettingsPage() {
     }
   };
 
+  const handleToggleCurrentDeviceTrust = async () => {
+    setIsLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const result = await toggleCurrentDeviceTrust();
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setCurrentDeviceTrust(prev =>
+          prev
+            ? {
+                ...prev,
+                isTrusted: !!result.isTrusted,
+              }
+            : null,
+        );
+        setSuccess(result.message || 'Device trust status updated');
+
+        // Reload trusted devices list to reflect changes
+        loadTrustedDevices();
+      }
+    } catch (err) {
+      setError('Failed to update device trust status');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleDeleteAccount = async () => {
     setIsLoading(true);
     try {
@@ -536,6 +589,34 @@ export default function SettingsPage() {
                     />
                   </div>
                 </div>
+
+                {/* Current Device Trust */}
+                {currentDeviceTrust && (
+                  <div className='flex items-center justify-between'>
+                    <div className='space-y-1'>
+                      <Label className='text-base'>
+                        Trusted Device: {currentDeviceTrust.deviceName}
+                      </Label>
+                      <p className='text-sm text-muted-foreground'>
+                        {currentDeviceTrust.isTrusted
+                          ? 'This device can bypass 2FA authentication'
+                          : 'This device will require 2FA authentication'}
+                      </p>
+                    </div>
+                    <div className='flex items-center space-x-2'>
+                      {currentDeviceTrust.isTrusted ? (
+                        <Shield className='h-4 w-4 text-green-500' />
+                      ) : (
+                        <Monitor className='h-4 w-4 text-muted-foreground' />
+                      )}
+                      <Switch
+                        checked={currentDeviceTrust.isTrusted}
+                        onCheckedChange={handleToggleCurrentDeviceTrust}
+                        disabled={isLoading}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Change Password Button */}
                 <div className='flex justify-end'>
