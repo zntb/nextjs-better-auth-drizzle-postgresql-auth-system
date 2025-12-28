@@ -15,10 +15,9 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { CheckCircle, AlertCircle } from 'lucide-react';
+import { CheckCircle, AlertCircle, Info } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
-
-// Replace your current login-form.tsx with this temporarily for debugging
+import { getUserLoginMethod } from '@/actions/get-user-login-method';
 
 export function LoginForm() {
   const router = useRouter();
@@ -58,11 +57,45 @@ export function LoginForm() {
 
     // Determine if this looks like an email or username
     const isEmail = identifier.includes('@');
-    const loginMethod = isEmail ? 'email' : 'username';
-    addLog(`🔍 Detected login method: ${loginMethod}`);
+    const attemptedMethod = isEmail ? 'email' : 'username';
+    addLog(`🔍 Attempted login method: ${attemptedMethod}`);
 
     try {
-      if (loginMethod === 'email') {
+      // First, check the user's default login method
+      addLog('🔍 Checking user default login method...');
+      const defaultLoginMethod = await getUserLoginMethod(identifier);
+
+      if (defaultLoginMethod === null) {
+        addLog('❌ User not found');
+        setIsLoading(false);
+        setError('Invalid credentials');
+        return;
+      }
+
+      addLog(`📋 User default login method: ${defaultLoginMethod}`);
+
+      // Check if the attempted method matches the user's default
+      if (attemptedMethod !== defaultLoginMethod) {
+        addLog(
+          `❌ Method mismatch: attempted ${attemptedMethod}, user requires ${defaultLoginMethod}`,
+        );
+        setIsLoading(false);
+
+        const methodMessage =
+          defaultLoginMethod === 'email'
+            ? 'Please use your email address to sign in.'
+            : 'Please use your username to sign in.';
+
+        setError(
+          `This account uses ${defaultLoginMethod} login. ${methodMessage}`,
+        );
+        return;
+      }
+
+      addLog('✅ Login method verified, proceeding with authentication');
+
+      // Proceed with the appropriate authentication method
+      if (attemptedMethod === 'email') {
         addLog('🔄 Calling signIn.email...');
         const result = await signIn.email(
           {

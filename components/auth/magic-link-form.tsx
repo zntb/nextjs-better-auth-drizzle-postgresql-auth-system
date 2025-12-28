@@ -33,7 +33,7 @@ export function MagicLinkForm() {
       const { data, error } = await authClient.signIn.magicLink({
         email,
         name: name || undefined,
-        callbackURL: '/dashboard',
+        callbackURL: '/profile',
       });
 
       if (error) {
