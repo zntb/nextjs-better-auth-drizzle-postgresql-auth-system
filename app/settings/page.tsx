@@ -590,8 +590,8 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {/* Current Device Trust */}
-                {currentDeviceTrust && (
+                {/* Current Device Trust - Only show when 2FA is enabled */}
+                {settings.twoFactorEnabled && currentDeviceTrust ? (
                   <div className='flex items-center justify-between'>
                     <div className='space-y-1'>
                       <Label className='text-base'>
@@ -616,7 +616,20 @@ export default function SettingsPage() {
                       />
                     </div>
                   </div>
-                )}
+                ) : !settings.twoFactorEnabled ? (
+                  <div className='flex items-center justify-between p-3 rounded-lg bg-muted/50'>
+                    <div className='space-y-1'>
+                      <Label className='text-base text-muted-foreground'>
+                        Trusted Device
+                      </Label>
+                      <p className='text-sm text-muted-foreground'>
+                        Enable two-factor authentication to manage trusted
+                        devices
+                      </p>
+                    </div>
+                    <Unlock className='h-4 w-4 text-muted-foreground' />
+                  </div>
+                ) : null}
 
                 {/* Change Password Button */}
                 <div className='flex justify-end'>

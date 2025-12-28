@@ -234,6 +234,14 @@ export async function toggleCurrentDeviceTrust() {
       return { error: 'Unauthorized' };
     }
 
+    // Check if 2FA is enabled - trusted devices only make sense when 2FA is on
+    if (!currentUser.twoFactorEnabled) {
+      return {
+        error:
+          'Trusted devices are only available when two-factor authentication is enabled',
+      };
+    }
+
     // Get current device information
     const headersList = await headers();
     const userAgent = headersList.get('user-agent') || '';
