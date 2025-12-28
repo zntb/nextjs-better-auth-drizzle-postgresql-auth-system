@@ -50,81 +50,143 @@ export function LoginForm() {
     addLog('🔵 Login attempt started');
 
     const formData = new FormData(e.currentTarget);
-    const email = formData.get('email') as string;
+    const identifier = formData.get('identifier') as string;
     const password = formData.get('password') as string;
 
-    setUserEmail(email);
-    addLog(`📧 Email: ${email}`);
+    setUserEmail(identifier);
+    addLog(`📧 Identifier: ${identifier}`);
+
+    // Determine if this looks like an email or username
+    const isEmail = identifier.includes('@');
+    const loginMethod = isEmail ? 'email' : 'username';
+    addLog(`🔍 Detected login method: ${loginMethod}`);
 
     try {
-      addLog('🔄 Calling signIn.email...');
-
-      const result = await signIn.email(
-        {
-          email,
-          password,
-        },
-        {
-          onRequest: () => {
-            addLog('📤 Request sent to server');
+      if (loginMethod === 'email') {
+        addLog('🔄 Calling signIn.email...');
+        const result = await signIn.email(
+          {
+            email: identifier,
+            password,
           },
-          onError: ctx => {
-            addLog(
-              `❌ Error received: ${JSON.stringify({
-                status: ctx.error.status,
-                message: ctx.error.message,
-              })}`,
-            );
+          {
+            onRequest: () => {
+              addLog('📤 Request sent to server');
+            },
+            onError: ctx => {
+              addLog(
+                `❌ Error received: ${JSON.stringify({
+                  status: ctx.error.status,
+                  message: ctx.error.message,
+                })}`,
+              );
 
-            setIsLoading(false);
-            if (ctx.error.status === 403) {
-              setNeedsVerification(true);
-              setError('Please verify your email address before signing in.');
-              addLog('📧 Email verification required');
-            } else {
-              setError(ctx.error.message || 'Invalid credentials');
-            }
+              setIsLoading(false);
+              if (ctx.error.status === 403) {
+                setNeedsVerification(true);
+                setError('Please verify your email address before signing in.');
+                addLog('📧 Email verification required');
+              } else {
+                setError(ctx.error.message || 'Invalid credentials');
+              }
+            },
+            onSuccess: ctx => {
+              addLog(`✅ Success callback triggered`);
+              addLog(
+                `📊 Response data: ${JSON.stringify({
+                  hasTwoFactorRedirect: 'twoFactorRedirect' in (ctx.data || {}),
+                  twoFactorRedirectValue: (ctx.data as any)?.twoFactorRedirect,
+                  sessionExists: !!ctx.data?.session,
+                  userExists: !!ctx.data?.user,
+                })}`,
+              );
+
+              // Check if 2FA is required
+              if ((ctx.data as any)?.twoFactorRedirect) {
+                addLog('🔐 2FA REDIRECT DETECTED - Should redirect to /2fa');
+                addLog('⏳ Waiting for onTwoFactorRedirect callback...');
+                // The global onTwoFactorRedirect callback should handle the redirect
+                return;
+              }
+
+              addLog('✓ No 2FA required, redirecting to home');
+              setIsLoading(false);
+              router.push('/');
+              router.refresh();
+            },
           },
-          onSuccess: ctx => {
-            addLog(`✅ Success callback triggered`);
-            addLog(
-              `📊 Response data: ${JSON.stringify({
-                hasTwoFactorRedirect: 'twoFactorRedirect' in (ctx.data || {}),
-                twoFactorRedirectValue: (ctx.data as any)?.twoFactorRedirect,
-                sessionExists: !!ctx.data?.session,
-                userExists: !!ctx.data?.user,
-              })}`,
-            );
+        );
 
-            // Check if 2FA is required
-            if ((ctx.data as any)?.twoFactorRedirect) {
-              addLog('🔐 2FA REDIRECT DETECTED - Should redirect to /2fa');
-              addLog('⏳ Waiting for onTwoFactorRedirect callback...');
-              // The global onTwoFactorRedirect callback should handle the redirect
-              return;
-            }
+        addLog(
+          `📦 Result received: ${JSON.stringify({
+            hasData: !!result?.data,
+            hasError: !!result?.error,
+            hasTwoFactorRedirect: !!(result?.data as any)?.twoFactorRedirect,
+          })}`,
+        );
 
-            addLog('✓ No 2FA required, redirecting to home');
-            setIsLoading(false);
-            router.push('/');
-            router.refresh();
-          },
-        },
-      );
-
-      addLog(
-        `📦 Result received: ${JSON.stringify({
-          hasData: !!result?.data,
-          hasError: !!result?.error,
-          hasTwoFactorRedirect: !!(result?.data as any)?.twoFactorRedirect,
-        })}`,
-      );
-
-      // Additional check
-      if ((result?.data as any)?.twoFactorRedirect) {
-        addLog('🔐 2FA redirect flag in result (backup check)');
+        // Additional check
+        if ((result?.data as any)?.twoFactorRedirect) {
+          addLog('🔐 2FA redirect flag in result (backup check)');
+        } else {
+          addLog('ℹ️ No 2FA redirect flag in result');
+        }
       } else {
-        addLog('ℹ️ No 2FA redirect flag in result');
+        addLog('🔄 Calling signIn.username...');
+        const result = await signIn.username(
+          {
+            username: identifier,
+            password,
+          },
+          {
+            onRequest: () => {
+              addLog('📤 Request sent to server');
+            },
+            onError: ctx => {
+              addLog(
+                `❌ Error received: ${JSON.stringify({
+                  status: ctx.error.status,
+                  message: ctx.error.message,
+                })}`,
+              );
+
+              setIsLoading(false);
+              setError(ctx.error.message || 'Invalid credentials');
+            },
+            onSuccess: ctx => {
+              addLog(`✅ Success callback triggered`);
+              addLog(
+                `📊 Response data: ${JSON.stringify({
+                  hasTwoFactorRedirect: 'twoFactorRedirect' in (ctx.data || {}),
+                  twoFactorRedirectValue: (ctx.data as any)?.twoFactorRedirect,
+                  sessionExists: !!ctx.data?.session,
+                  userExists: !!ctx.data?.user,
+                })}`,
+              );
+
+              // Check if 2FA is required
+              if ((ctx.data as any)?.twoFactorRedirect) {
+                addLog('🔐 2FA REDIRECT DETECTED - Should redirect to /2fa');
+                addLog('⏳ Waiting for onTwoFactorRedirect callback...');
+                // The global onTwoFactorRedirect callback should handle the redirect
+                return;
+              }
+
+              addLog('✓ No 2FA required, redirecting to home');
+              setIsLoading(false);
+              router.push('/');
+              router.refresh();
+            },
+          },
+        );
+
+        addLog(
+          `📦 Result received: ${JSON.stringify({
+            hasData: !!result?.data,
+            hasError: !!result?.error,
+            hasTwoFactorRedirect: !!(result?.data as any)?.twoFactorRedirect,
+          })}`,
+        );
       }
     } catch (err) {
       addLog(`💥 Exception caught: ${err}`);
@@ -208,12 +270,12 @@ export function LoginForm() {
             )}
 
             <div className='space-y-2'>
-              <Label htmlFor='email'>Email or Username</Label>
+              <Label htmlFor='identifier'>Email or Username</Label>
               <Input
-                id='email'
-                name='email'
+                id='identifier'
+                name='identifier'
                 type='text'
-                placeholder='email@example.com'
+                placeholder='email@example.com or username'
                 required
                 disabled={isLoading}
               />

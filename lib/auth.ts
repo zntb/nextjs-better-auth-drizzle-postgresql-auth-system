@@ -94,6 +94,11 @@ export const auth = betterAuth({
         required: false,
         defaultValue: true,
       },
+      defaultLoginMethod: {
+        type: 'string',
+        required: false,
+        defaultValue: 'email',
+      },
     },
   },
 });

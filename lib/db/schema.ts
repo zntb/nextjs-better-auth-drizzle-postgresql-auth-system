@@ -27,6 +27,7 @@ export const user = pgTable('user', {
   emailPasswordEnabled: boolean('email_password_enabled')
     .notNull()
     .default(true),
+  defaultLoginMethod: text('default_login_method').notNull().default('email'),
 });
 
 export const session = pgTable(

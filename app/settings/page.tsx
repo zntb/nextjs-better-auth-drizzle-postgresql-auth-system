@@ -1,5 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 /* eslint-disable @typescript-eslint/no-unused-vars */
+// app/settings/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -51,6 +52,7 @@ import {
 import { ChangePasswordForm } from '@/components/auth/change-password-form';
 import {
   toggleEmailPassword,
+  updateDefaultLoginMethod,
   enableTwoFactor,
   disableTwoFactor,
   getTrustedDevices,
@@ -84,11 +86,13 @@ interface ExtendedUser {
   name: string;
   twoFactorEnabled?: boolean | null;
   emailPasswordEnabled?: boolean | null;
+  defaultLoginMethod?: string | null;
   [key: string]: unknown;
 }
 
 interface SettingsState {
   emailPasswordEnabled: boolean;
+  defaultLoginMethod: 'email' | 'username';
   twoFactorEnabled: boolean;
   trustedDevices: TrustedDevice[];
   notifications: {
@@ -129,6 +133,7 @@ export default function SettingsPage() {
   // Settings state
   const [settings, setSettings] = useState<SettingsState>({
     emailPasswordEnabled: true,
+    defaultLoginMethod: 'email',
     twoFactorEnabled: false,
     trustedDevices: [],
     notifications: {
@@ -160,6 +165,10 @@ export default function SettingsPage() {
         ...prev,
         emailPasswordEnabled:
           (session.user as ExtendedUser).emailPasswordEnabled ?? true,
+        defaultLoginMethod:
+          ((session.user as ExtendedUser).defaultLoginMethod as
+            | 'email'
+            | 'username') ?? 'email',
         twoFactorEnabled: session.user.twoFactorEnabled || false,
       }));
       loadTrustedDevices();
@@ -217,6 +226,28 @@ export default function SettingsPage() {
       }
     } catch (err) {
       setError('Failed to update password setting');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdateDefaultLoginMethod = async (
+    method: 'email' | 'username',
+  ) => {
+    setIsLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const result = await updateDefaultLoginMethod(method);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setSettings(prev => ({ ...prev, defaultLoginMethod: method }));
+        setSuccess(`Default login method updated to ${method}`);
+      }
+    } catch (err) {
+      setError('Failed to update default login method');
     } finally {
       setIsLoading(false);
     }
@@ -454,6 +485,31 @@ export default function SettingsPage() {
                     disabled={isLoading}
                   />
                 </div>
+
+                {/* Default Login Method */}
+                {settings.emailPasswordEnabled && (
+                  <div className='space-y-3'>
+                    <Label className='text-base'>Default Login Method</Label>
+                    <p className='text-sm text-muted-foreground'>
+                      Choose your preferred way to sign in with password
+                    </p>
+                    <Select
+                      value={settings.defaultLoginMethod}
+                      onValueChange={(value: 'email' | 'username') =>
+                        handleUpdateDefaultLoginMethod(value)
+                      }
+                      disabled={isLoading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='email'>Email Address</SelectItem>
+                        <SelectItem value='username'>Username</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 <Separator />
 

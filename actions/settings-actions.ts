@@ -163,3 +163,21 @@ export async function deleteAccount() {
     return { error: 'Failed to delete account' };
   }
 }
+
+export async function updateDefaultLoginMethod(method: 'email' | 'username') {
+  try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return { error: 'Unauthorized' };
+    }
+
+    await db
+      .update(user)
+      .set({ defaultLoginMethod: method })
+      .where(eq(user.id, currentUser.id));
+
+    return { success: true };
+  } catch (error) {
+    return { error: 'Failed to update default login method' };
+  }
+}

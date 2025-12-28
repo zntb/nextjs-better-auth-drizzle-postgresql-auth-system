@@ -33,6 +33,8 @@ export function SignupForm() {
     const password = formData.get('password') as string;
     const confirmPassword = formData.get('confirmPassword') as string;
     const name = formData.get('name') as string;
+    const username = formData.get('username') as string;
+    const displayUsername = formData.get('displayUsername') as string;
 
     if (password !== confirmPassword) {
       setError('Passwords do not match');
@@ -51,6 +53,8 @@ export function SignupForm() {
         email,
         password,
         name,
+        username: username || undefined,
+        displayUsername: displayUsername || undefined,
         // Users will be redirected to /verify after clicking the verification link
         callbackURL: '/verify',
       });
@@ -151,6 +155,34 @@ export function SignupForm() {
               required
               disabled={isLoading}
             />
+          </div>
+
+          <div className='space-y-2'>
+            <Label htmlFor='username'>Username (Optional)</Label>
+            <Input
+              id='username'
+              name='username'
+              type='text'
+              placeholder='johndoe'
+              disabled={isLoading}
+            />
+            <p className='text-xs text-muted-foreground'>
+              Choose a username to sign in with username and password
+            </p>
+          </div>
+
+          <div className='space-y-2'>
+            <Label htmlFor='displayUsername'>Display Username (Optional)</Label>
+            <Input
+              id='displayUsername'
+              name='displayUsername'
+              type='text'
+              placeholder='John Doe'
+              disabled={isLoading}
+            />
+            <p className='text-xs text-muted-foreground'>
+              How your username will be displayed (defaults to your name)
+            </p>
           </div>
 
           <div className='space-y-2'>
