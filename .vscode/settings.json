@@ -5,6 +5,7 @@
     "neondatabase",
     "otpauth",
     "paralleldrive",
+    "prefs",
     "totp",
     "unban"
   ]

@@ -4,6 +4,13 @@
 import { useState, useEffect } from 'react';
 import { getCurrentUser } from '@/actions/auth-actions';
 import {
+  getUserNotificationPreferences,
+  updateUserNotificationPreferences,
+  sendTestNotification,
+  getNotificationStatistics,
+} from '@/actions/admin-notification-actions';
+import { NotificationHistory } from '@/components/admin/notification-history';
+import {
   Card,
   CardContent,
   CardDescription,
@@ -14,6 +21,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Separator } from '@/components/ui/separator';
 import {
   Settings,
   Shield,
@@ -70,20 +80,63 @@ export default function AdminSettingsPage() {
     details?: string | { host: string; port: number; user: string };
   } | null>(null);
 
-  // Check admin access on component mount
+  // Notification settings state
+  const [notificationPreferences, setNotificationPreferences] = useState({
+    emailNotificationsEnabled: true,
+    securityAlertsEnabled: true,
+    adminAlertsEnabled: true,
+    systemUpdatesEnabled: true,
+    userActivityReportsEnabled: false,
+    weeklyDigestEnabled: false,
+  });
+  const [notificationStats, setNotificationStats] = useState<{
+    emailNotifications: { enabled: number; disabled: number; total: number };
+    securityAlerts: { enabled: number; disabled: number; total: number };
+  } | null>(null);
+  const [notificationLoading, setNotificationLoading] = useState(false);
+  const [testNotificationLoading, setTestNotificationLoading] = useState(false);
+  const [testNotificationMessage, setTestNotificationMessage] = useState('');
+  const [notificationStatsLoading, setNotificationStatsLoading] =
+    useState(false);
+
+  // Check admin access and load notification preferences on component mount
   useEffect(() => {
-    async function checkAccess() {
+    async function initializeSettings() {
       try {
         const user = await getCurrentUser();
         setCurrentUser(user);
+
+        if (user) {
+          // Load notification preferences
+          const prefsResult = await getUserNotificationPreferences();
+          if (prefsResult.success && prefsResult.preferences) {
+            setNotificationPreferences(prev => ({
+              ...prev,
+              emailNotificationsEnabled:
+                prefsResult.preferences.emailNotificationsEnabled,
+              securityAlertsEnabled:
+                prefsResult.preferences.securityAlertsEnabled,
+            }));
+          }
+
+          // Load notification statistics (admin only)
+          if (user.role === 'admin') {
+            setNotificationStatsLoading(true);
+            const statsResult = await getNotificationStatistics();
+            if (statsResult.success && statsResult.statistics) {
+              setNotificationStats(statsResult.statistics);
+            }
+            setNotificationStatsLoading(false);
+          }
+        }
       } catch (error) {
-        console.error('Failed to get current user:', error);
+        console.error('Failed to initialize settings:', error);
         setCurrentUser(null);
       } finally {
         setLoading(false);
       }
     }
-    checkAccess();
+    initializeSettings();
   }, []);
 
   // Show loading state
@@ -182,6 +235,55 @@ export default function AdminSettingsPage() {
       toast.error('Failed to test email configuration');
     } finally {
       setTestEmailLoading(false);
+    }
+  };
+
+  const handleNotificationPreferenceChange = (key: string, value: boolean) => {
+    setNotificationPreferences(prev => ({ ...prev, [key]: value }));
+  };
+
+  const saveNotificationPreferences = async () => {
+    setNotificationLoading(true);
+    try {
+      const result = await updateUserNotificationPreferences(
+        currentUser!.id,
+        notificationPreferences,
+      );
+
+      if (result.success) {
+        toast.success('Notification preferences saved successfully!');
+      } else {
+        toast.error(result.error || 'Failed to save notification preferences');
+      }
+    } catch (error) {
+      console.error('Save notification preferences error:', error);
+      toast.error('Failed to save notification preferences');
+    } finally {
+      setNotificationLoading(false);
+    }
+  };
+
+  const sendTestNotificationEmail = async (type: 'security' | 'general') => {
+    if (!testNotificationMessage.trim()) {
+      toast.error('Please enter a test message');
+      return;
+    }
+
+    setTestNotificationLoading(true);
+    try {
+      const result = await sendTestNotification(type, testNotificationMessage);
+
+      if (result.success) {
+        toast.success('Test notification sent successfully!');
+        setTestNotificationMessage('');
+      } else {
+        toast.error(result.error || 'Failed to send test notification');
+      }
+    } catch (error) {
+      console.error('Send test notification error:', error);
+      toast.error('Failed to send test notification');
+    } finally {
+      setTestNotificationLoading(false);
     }
   };
 
@@ -486,46 +588,245 @@ export default function AdminSettingsPage() {
             <CardTitle className='flex items-center space-x-2'>
               <Bell className='h-5 w-5' />
               <span>Notification Settings</span>
+              {notificationStats && (
+                <Badge variant='secondary' className='ml-2'>
+                  {notificationStats.emailNotifications.enabled +
+                    notificationStats.securityAlerts.enabled}{' '}
+                  Active
+                </Badge>
+              )}
             </CardTitle>
             <CardDescription>
               Configure system notifications and alerts
             </CardDescription>
           </CardHeader>
-          <CardContent className='space-y-4'>
-            <div className='flex items-center justify-between'>
-              <div className='space-y-0.5'>
-                <Label>Security Alerts</Label>
-                <p className='text-sm text-muted-foreground'>
-                  Email admin about security events
-                </p>
+          <CardContent className='space-y-6'>
+            {/* User Notification Preferences */}
+            <div className='space-y-4'>
+              <div className='flex items-center justify-between'>
+                <div className='space-y-0.5'>
+                  <Label>Email Notifications</Label>
+                  <p className='text-sm text-muted-foreground'>
+                    Receive general email notifications
+                  </p>
+                </div>
+                <Switch
+                  checked={notificationPreferences.emailNotificationsEnabled}
+                  onCheckedChange={checked =>
+                    handleNotificationPreferenceChange(
+                      'emailNotificationsEnabled',
+                      checked,
+                    )
+                  }
+                />
               </div>
-              <Switch defaultChecked />
+
+              <div className='flex items-center justify-between'>
+                <div className='space-y-0.5'>
+                  <Label>Security Alerts</Label>
+                  <p className='text-sm text-muted-foreground'>
+                    Receive security-related notifications
+                  </p>
+                </div>
+                <Switch
+                  checked={notificationPreferences.securityAlertsEnabled}
+                  onCheckedChange={checked =>
+                    handleNotificationPreferenceChange(
+                      'securityAlertsEnabled',
+                      checked,
+                    )
+                  }
+                />
+              </div>
+
+              {currentUser?.role === 'admin' && (
+                <>
+                  <Separator />
+                  <div className='space-y-4'>
+                    <h4 className='text-sm font-medium'>
+                      Admin-Specific Notifications
+                    </h4>
+
+                    <div className='flex items-center justify-between'>
+                      <div className='space-y-0.5'>
+                        <Label>Admin Alerts</Label>
+                        <p className='text-sm text-muted-foreground'>
+                          Critical system alerts for administrators
+                        </p>
+                      </div>
+                      <Switch
+                        checked={notificationPreferences.adminAlertsEnabled}
+                        onCheckedChange={checked =>
+                          handleNotificationPreferenceChange(
+                            'adminAlertsEnabled',
+                            checked,
+                          )
+                        }
+                      />
+                    </div>
+
+                    <div className='flex items-center justify-between'>
+                      <div className='space-y-0.5'>
+                        <Label>System Updates</Label>
+                        <p className='text-sm text-muted-foreground'>
+                          Notifications about system updates and maintenance
+                        </p>
+                      </div>
+                      <Switch
+                        checked={notificationPreferences.systemUpdatesEnabled}
+                        onCheckedChange={checked =>
+                          handleNotificationPreferenceChange(
+                            'systemUpdatesEnabled',
+                            checked,
+                          )
+                        }
+                      />
+                    </div>
+
+                    <div className='flex items-center justify-between'>
+                      <div className='space-y-0.5'>
+                        <Label>User Activity Reports</Label>
+                        <p className='text-sm text-muted-foreground'>
+                          Weekly reports on user activity and system usage
+                        </p>
+                      </div>
+                      <Switch
+                        checked={
+                          notificationPreferences.userActivityReportsEnabled
+                        }
+                        onCheckedChange={checked =>
+                          handleNotificationPreferenceChange(
+                            'userActivityReportsEnabled',
+                            checked,
+                          )
+                        }
+                      />
+                    </div>
+
+                    <div className='flex items-center justify-between'>
+                      <div className='space-y-0.5'>
+                        <Label>Weekly Digest</Label>
+                        <p className='text-sm text-muted-foreground'>
+                          Summary of weekly system statistics and events
+                        </p>
+                      </div>
+                      <Switch
+                        checked={notificationPreferences.weeklyDigestEnabled}
+                        onCheckedChange={checked =>
+                          handleNotificationPreferenceChange(
+                            'weeklyDigestEnabled',
+                            checked,
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
-            <div className='flex items-center justify-between'>
-              <div className='space-y-0.5'>
-                <Label>New User Notifications</Label>
-                <p className='text-sm text-muted-foreground'>
-                  Notify when new users register
-                </p>
-              </div>
-              <Switch />
-            </div>
+            <Separator />
 
-            <div className='flex items-center justify-between'>
-              <div className='space-y-0.5'>
-                <Label>System Updates</Label>
-                <p className='text-sm text-muted-foreground'>
-                  Notify about system updates
-                </p>
+            {/* Test Notification Section */}
+            {currentUser?.role === 'admin' && (
+              <div className='space-y-4'>
+                <h4 className='text-sm font-medium'>Test Notifications</h4>
+                <div className='space-y-3'>
+                  <div className='space-y-2'>
+                    <Label htmlFor='test-notification-message'>
+                      Test Message
+                    </Label>
+                    <Textarea
+                      id='test-notification-message'
+                      placeholder='Enter a test message to send to yourself...'
+                      value={testNotificationMessage}
+                      onChange={e => setTestNotificationMessage(e.target.value)}
+                      rows={3}
+                    />
+                  </div>
+                  <div className='flex space-x-2'>
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      onClick={() => sendTestNotificationEmail('security')}
+                      disabled={testNotificationLoading}
+                    >
+                      {testNotificationLoading ? (
+                        <>
+                          <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                          Sending...
+                        </>
+                      ) : (
+                        'Test Security Alert'
+                      )}
+                    </Button>
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      onClick={() => sendTestNotificationEmail('general')}
+                      disabled={testNotificationLoading}
+                    >
+                      {testNotificationLoading ? (
+                        <>
+                          <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                          Sending...
+                        </>
+                      ) : (
+                        'Test General Notification'
+                      )}
+                    </Button>
+                  </div>
+                </div>
               </div>
-              <Switch defaultChecked />
-            </div>
+            )}
 
-            <div className='space-y-2'>
-              <Label htmlFor='admin-email'>Admin Email</Label>
-              <Input id='admin-email' placeholder='admin@example.com' />
-            </div>
+            {/* Notification Statistics */}
+            {currentUser?.role === 'admin' && notificationStats && (
+              <div className='space-y-4'>
+                <Separator />
+                <h4 className='text-sm font-medium'>Notification Statistics</h4>
+                <div className='grid grid-cols-2 gap-4'>
+                  <div className='space-y-2'>
+                    <p className='text-sm font-medium'>Email Notifications</p>
+                    <div className='flex items-center space-x-2 text-xs text-muted-foreground'>
+                      <span className='inline-flex items-center px-2 py-1 rounded-full bg-green-100 text-green-800'>
+                        {notificationStats.emailNotifications.enabled} Enabled
+                      </span>
+                      <span className='inline-flex items-center px-2 py-1 rounded-full bg-red-100 text-red-800'>
+                        {notificationStats.emailNotifications.disabled} Disabled
+                      </span>
+                    </div>
+                  </div>
+                  <div className='space-y-2'>
+                    <p className='text-sm font-medium'>Security Alerts</p>
+                    <div className='flex items-center space-x-2 text-xs text-muted-foreground'>
+                      <span className='inline-flex items-center px-2 py-1 rounded-full bg-green-100 text-green-800'>
+                        {notificationStats.securityAlerts.enabled} Enabled
+                      </span>
+                      <span className='inline-flex items-center px-2 py-1 rounded-full bg-red-100 text-red-800'>
+                        {notificationStats.securityAlerts.disabled} Disabled
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {currentUser?.role === 'admin' && notificationStatsLoading && (
+              <div className='flex items-center space-x-2 text-sm text-muted-foreground'>
+                <Loader2 className='h-4 w-4 animate-spin' />
+                <span>Loading statistics...</span>
+              </div>
+            )}
+
+            {/* Notification History */}
+            {currentUser?.role === 'admin' && (
+              <div className='space-y-4'>
+                <Separator />
+                <h4 className='text-sm font-medium'>Notification History</h4>
+                <NotificationHistory />
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -540,7 +841,19 @@ export default function AdminSettingsPage() {
                 Changes will be applied immediately
               </p>
             </div>
-            <Button>Save All Settings</Button>
+            <Button
+              onClick={saveNotificationPreferences}
+              disabled={notificationLoading}
+            >
+              {notificationLoading ? (
+                <>
+                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                  Saving...
+                </>
+              ) : (
+                'Save All Settings'
+              )}
+            </Button>
           </div>
         </CardContent>
       </Card>
