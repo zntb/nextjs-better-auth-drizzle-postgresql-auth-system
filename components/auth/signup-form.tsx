@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signUp } from '@/lib/auth-client';
+import { createUserWithEmail } from '@/actions/auth-actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -49,15 +49,18 @@ export function SignupForm() {
     }
 
     try {
-      await signUp.email({
+      const result = await createUserWithEmail({
         email,
         password,
         name,
         username: username || undefined,
         displayUsername: displayUsername || undefined,
-        // Users will be redirected to /verify after clicking the verification link
-        callbackURL: '/verify',
       });
+
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
 
       setSuccess(true);
     } catch (err) {

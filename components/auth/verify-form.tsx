@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { verifyEmail } from '@/actions/auth-actions';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -20,16 +21,37 @@ export function VerifyForm() {
   );
 
   useEffect(() => {
-    // Check if there's an error from Better Auth
-    const error = searchParams.get('error');
+    const handleVerification = async () => {
+      const token = searchParams.get('token');
+      const error = searchParams.get('error');
 
-    if (error === 'INVALID_TOKEN') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setStatus('error');
-    } else {
-      // If no error, verification was successful
-      setStatus('success');
-    }
+      // Check for error parameters first
+      if (error === 'INVALID_TOKEN' || error === 'EXPIRED_TOKEN') {
+        setStatus('error');
+        return;
+      }
+
+      // If there's a token, verify it
+      if (token) {
+        try {
+          const result = await verifyEmail(token);
+          if (result.error) {
+            setStatus('error');
+          } else {
+            setStatus('success');
+          }
+        } catch (error) {
+          console.error('Verification error:', error);
+          setStatus('error');
+        }
+      } else {
+        // No token and no error - might be a successful verification without token
+        // This happens when Better Auth handles the verification automatically
+        setStatus('success');
+      }
+    };
+
+    handleVerification();
   }, [searchParams]);
 
   if (status === 'loading') {
