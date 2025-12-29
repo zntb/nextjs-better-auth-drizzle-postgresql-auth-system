@@ -1,4 +1,7 @@
 // app/admin/settings/page.tsx
+'use client';
+
+import { useState, useEffect } from 'react';
 import { getCurrentUser } from '@/actions/auth-actions';
 import {
   Card,
@@ -20,10 +23,80 @@ import {
   Globe,
   Bell,
   Lock,
+  Loader2,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
-export default async function AdminSettingsPage() {
-  const currentUser = await getCurrentUser();
+// Type for current user based on database schema
+type CurrentUser = {
+  id: string;
+  name: string;
+  email: string;
+  emailVerified: boolean;
+  role?: string | null;
+  twoFactorEnabled?: boolean | null; // Optional to match Better Auth types
+  username?: string | null;
+  displayUsername?: string | null;
+  emailPasswordEnabled?: boolean | null; // Optional to match Better Auth types
+  defaultLoginMethod?: string | null; // Optional to match Better Auth types
+  emailNotificationsEnabled?: boolean | null; // Optional to match Better Auth types
+  securityAlertsEnabled?: boolean | null; // Optional to match Better Auth types
+  banned?: boolean | null; // Optional to match Better Auth types
+  banReason?: string | null;
+  banExpires?: Date | null;
+  blocked?: boolean | null; // Optional to match Better Auth types
+  image?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+} | null;
+
+export default function AdminSettingsPage() {
+  const [currentUser, setCurrentUser] = useState<CurrentUser>(null);
+  const [loading, setLoading] = useState(true);
+  const [emailConfig, setEmailConfig] = useState({
+    smtpHost: '',
+    smtpPort: '',
+    smtpUser: '',
+    smtpPassword: '',
+    testEmail: '',
+  });
+  const [testEmailLoading, setTestEmailLoading] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState<{
+    success?: boolean;
+    message?: string;
+    error?: string;
+    details?: string | { host: string; port: number; user: string };
+  } | null>(null);
+
+  // Check admin access on component mount
+  useEffect(() => {
+    async function checkAccess() {
+      try {
+        const user = await getCurrentUser();
+        setCurrentUser(user);
+      } catch (error) {
+        console.error('Failed to get current user:', error);
+        setCurrentUser(null);
+      } finally {
+        setLoading(false);
+      }
+    }
+    checkAccess();
+  }, []);
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className='flex items-center justify-center min-h-[50vh]'>
+        <div className='flex items-center space-x-2'>
+          <Loader2 className='h-6 w-6 animate-spin' />
+          <span>Loading...</span>
+        </div>
+      </div>
+    );
+  }
 
   if (!currentUser || currentUser.role !== 'admin') {
     return (
@@ -39,6 +112,78 @@ export default async function AdminSettingsPage() {
       </div>
     );
   }
+
+  const handleEmailConfigChange = (field: string, value: string) => {
+    setEmailConfig(prev => ({ ...prev, [field]: value }));
+    // Clear previous test results when config changes
+    setTestEmailResult(null);
+  };
+
+  const handleTestEmail = async () => {
+    // Validate required fields
+    const requiredFields = [
+      'smtpHost',
+      'smtpPort',
+      'smtpUser',
+      'smtpPassword',
+      'testEmail',
+    ];
+    const missingFields = requiredFields.filter(
+      field => !emailConfig[field as keyof typeof emailConfig],
+    );
+
+    if (missingFields.length > 0) {
+      toast.error(`Please fill in all fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    setTestEmailLoading(true);
+    setTestEmailResult(null);
+
+    try {
+      const response = await fetch('/api/admin/test-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          smtpHost: emailConfig.smtpHost,
+          smtpPort: emailConfig.smtpPort,
+          smtpUser: emailConfig.smtpUser,
+          smtpPassword: emailConfig.smtpPassword,
+          testEmail: emailConfig.testEmail,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setTestEmailResult({
+          success: true,
+          message: result.message,
+          details: result.details,
+        });
+        toast.success('Email configuration test successful!');
+      } else {
+        setTestEmailResult({
+          success: false,
+          error: result.error,
+          details: result.details,
+        });
+        toast.error(result.error || 'Email configuration test failed');
+      }
+    } catch (error) {
+      console.error('Test email error:', error);
+      setTestEmailResult({
+        success: false,
+        error: 'Failed to test email configuration',
+        details: 'Please check your network connection and try again.',
+      });
+      toast.error('Failed to test email configuration');
+    } finally {
+      setTestEmailLoading(false);
+    }
+  };
 
   return (
     <div className='space-y-6'>
@@ -155,7 +300,7 @@ export default async function AdminSettingsPage() {
                   Require 2FA for admin accounts
                 </p>
               </div>
-              <Switch />
+              <Switch checked={currentUser?.twoFactorEnabled || false} />
             </div>
           </CardContent>
         </Card>
@@ -174,17 +319,38 @@ export default async function AdminSettingsPage() {
           <CardContent className='space-y-4'>
             <div className='space-y-2'>
               <Label htmlFor='smtp-host'>SMTP Host</Label>
-              <Input id='smtp-host' placeholder='smtp.example.com' />
+              <Input
+                id='smtp-host'
+                placeholder='smtp.example.com'
+                value={emailConfig.smtpHost}
+                onChange={e =>
+                  handleEmailConfigChange('smtpHost', e.target.value)
+                }
+              />
             </div>
 
             <div className='space-y-2'>
               <Label htmlFor='smtp-port'>SMTP Port</Label>
-              <Input id='smtp-port' placeholder='587' />
+              <Input
+                id='smtp-port'
+                placeholder='587'
+                value={emailConfig.smtpPort}
+                onChange={e =>
+                  handleEmailConfigChange('smtpPort', e.target.value)
+                }
+              />
             </div>
 
             <div className='space-y-2'>
               <Label htmlFor='smtp-user'>SMTP Username</Label>
-              <Input id='smtp-user' placeholder='username@example.com' />
+              <Input
+                id='smtp-user'
+                placeholder='username@example.com'
+                value={emailConfig.smtpUser}
+                onChange={e =>
+                  handleEmailConfigChange('smtpUser', e.target.value)
+                }
+              />
             </div>
 
             <div className='space-y-2'>
@@ -193,10 +359,80 @@ export default async function AdminSettingsPage() {
                 id='smtp-password'
                 type='password'
                 placeholder='••••••••'
+                value={emailConfig.smtpPassword}
+                onChange={e =>
+                  handleEmailConfigChange('smtpPassword', e.target.value)
+                }
               />
             </div>
 
-            <Button className='w-full'>Test Email Configuration</Button>
+            <div className='space-y-2'>
+              <Label htmlFor='test-email'>Test Email Address</Label>
+              <Input
+                id='test-email'
+                type='email'
+                placeholder='test@example.com'
+                value={emailConfig.testEmail}
+                onChange={e =>
+                  handleEmailConfigChange('testEmail', e.target.value)
+                }
+              />
+            </div>
+
+            <div className='space-y-3'>
+              <Button
+                className='w-full'
+                onClick={handleTestEmail}
+                disabled={testEmailLoading}
+              >
+                {testEmailLoading ? (
+                  <>
+                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                    Testing Configuration...
+                  </>
+                ) : (
+                  'Test Email Configuration'
+                )}
+              </Button>
+
+              {/* Test Results */}
+              {testEmailResult && (
+                <div
+                  className={`p-3 rounded-lg border ${
+                    testEmailResult.success
+                      ? 'bg-green-50 border-green-200 text-green-800'
+                      : 'bg-red-50 border-red-200 text-red-800'
+                  }`}
+                >
+                  <div className='flex items-start space-x-2'>
+                    {testEmailResult.success ? (
+                      <CheckCircle className='h-5 w-5 mt-0.5 text-green-600' />
+                    ) : (
+                      <XCircle className='h-5 w-5 mt-0.5 text-red-600' />
+                    )}
+                    <div className='flex-1'>
+                      <p className='font-medium'>
+                        {testEmailResult.success
+                          ? 'Test Successful!'
+                          : 'Test Failed'}
+                      </p>
+                      <p className='text-sm mt-1'>
+                        {testEmailResult.success
+                          ? testEmailResult.message
+                          : testEmailResult.error}
+                      </p>
+                      {testEmailResult.details && (
+                        <p className='text-sm mt-2 opacity-80'>
+                          {typeof testEmailResult.details === 'object'
+                            ? `Host: ${testEmailResult.details.host}, Port: ${testEmailResult.details.port}, User: ${testEmailResult.details.user}`
+                            : testEmailResult.details}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 

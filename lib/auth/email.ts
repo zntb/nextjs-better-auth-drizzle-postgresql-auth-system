@@ -397,3 +397,119 @@ export async function sendNotificationPreferenceUpdateEmail(
     `,
   });
 }
+
+interface SmtpConfig {
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+  testEmail: string;
+}
+
+export async function testSmtpConfiguration(config: SmtpConfig) {
+  try {
+    // Create a test transporter with the provided configuration
+    const testTransporter = nodemailer.createTransport({
+      host: config.host,
+      port: config.port,
+      secure: config.port === 465, // true for 465, false for other ports
+      auth: {
+        user: config.user,
+        pass: config.password,
+      },
+    });
+
+    // Test the connection by verifying it
+    await testTransporter.verify();
+
+    // Send a test email
+    const testEmailHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Email Configuration Test</title>
+        </head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background-color: #f0f9ff; border-radius: 10px; padding: 30px; margin: 20px 0; border-left: 4px solid #3b82f6;">
+            <div style="display: flex; align-items: center; margin-bottom: 20px;">
+              <div style="background-color: #3b82f6; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; margin-right: 15px;">
+                <svg width="20" height="20" fill="white" viewBox="0 0 20 20">
+                  <path d="M10 2L3 7v11h4v-6h6v6h4V7l-7-5z" />
+                </svg>
+              </div>
+              <div>
+                <h1 style="color: #2c3e50; margin: 0; font-size: 24px;">Email Configuration Test</h1>
+                <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">Success</p>
+              </div>
+            </div>
+            
+            <p style="font-size: 16px; color: #555; margin-bottom: 20px;">
+              This is a test email to confirm your SMTP configuration is working correctly.
+            </p>
+            
+            <div style="background-color: #ecfdf5; border: 1px solid #bbf7d0; border-radius: 6px; padding: 15px; margin: 20px 0;">
+              <p style="font-size: 14px; color: #065f46; margin: 0;">
+                <strong>Configuration Details:</strong><br/>
+                Host: ${config.host}<br/>
+                Port: ${config.port}<br/>
+                User: ${config.user}
+              </p>
+            </div>
+            
+            <p style="font-size: 12px; color: #999; margin-top: 30px;">
+              This is an automated test email. Your email configuration is working properly!
+            </p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    await testTransporter.sendMail({
+      from: config.user, // Use the SMTP user as the sender
+      to: config.testEmail,
+      subject: 'Email Configuration Test - Success!',
+      html: testEmailHtml,
+    });
+
+    return {
+      success: true,
+      message: 'Email configuration test successful! Test email sent.',
+      details: {
+        host: config.host,
+        port: config.port,
+        user: config.user,
+      },
+    };
+  } catch (error) {
+    console.error('SMTP configuration test failed:', error);
+
+    // Provide specific error messages for common issues
+    let errorMessage = 'Failed to test email configuration';
+    let errorDetails = '';
+
+    if (error instanceof Error) {
+      errorMessage = error.message;
+
+      // Add helpful context based on error type
+      if (error.message.includes('ECONNREFUSED')) {
+        errorDetails =
+          'Cannot connect to SMTP server. Please check the host and port.';
+      } else if (error.message.includes('ENOTFOUND')) {
+        errorDetails = 'DNS resolution failed. Please check the host address.';
+      } else if (error.message.includes('Authentication')) {
+        errorDetails =
+          'Authentication failed. Please check username and password.';
+      } else if (error.message.includes('Timeout')) {
+        errorDetails = 'Connection timeout. Please check the host and port.';
+      }
+    }
+
+    return {
+      success: false,
+      error: errorMessage,
+      details: errorDetails || 'Please check your SMTP configuration.',
+    };
+  }
+}
