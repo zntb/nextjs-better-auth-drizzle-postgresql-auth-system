@@ -13,6 +13,7 @@ import {
   sendNotificationPreferenceUpdateEmail,
 } from '@/lib/auth/email';
 import { normalizeUserForNotifications } from '@/lib/utils';
+import { canEnable2FA } from './check-user-provider';
 
 export async function toggleEmailPassword(enabled: boolean) {
   try {
@@ -46,6 +47,16 @@ export async function enableTwoFactor(password: string) {
       return { error: 'Unauthorized' };
     }
 
+    // Check if user has credential-based authentication
+    const canEnable = await canEnable2FA();
+    if (!canEnable.canEnable) {
+      return {
+        error:
+          canEnable.message ||
+          'Two-factor authentication can only be enabled for accounts with email and password authentication.',
+      };
+    }
+
     // Use Better Auth's built-in 2FA API
     const result = await auth.api.enableTwoFactor({
       body: {
@@ -69,6 +80,13 @@ export async function enableTwoFactor(password: string) {
     console.error('Enable 2FA error:', error);
     if (error instanceof Error && error.message.includes('Invalid password')) {
       return { error: 'Invalid password. Please try again.' };
+    }
+    // Check for OAuth-specific errors
+    if (error instanceof Error && error.message.includes('credential')) {
+      return {
+        error:
+          'Two-factor authentication is only available for accounts with email and password authentication. Your account uses OAuth provider authentication.',
+      };
     }
     return { error: 'Failed to enable 2FA' };
   }

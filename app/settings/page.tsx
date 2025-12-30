@@ -48,6 +48,7 @@ import {
   Eye,
   Unlock,
   Copy,
+  Loader2,
 } from 'lucide-react';
 import { ChangePasswordForm } from '@/components/auth/change-password-form';
 import {
@@ -64,6 +65,9 @@ import {
   confirmTwoFactorEnabled,
 } from '@/actions/settings-actions';
 import { Input } from '@/components/ui/input';
+import { AddPasswordDialog } from '@/components/auth/add-password-dialog';
+import { canEnable2FA } from '@/actions/add-password-for-oauth';
+import { Badge } from '@/components/ui/badge';
 
 interface TrustedDevice {
   id: string;
@@ -135,6 +139,13 @@ export default function SettingsPage() {
   const [verificationCode, setVerificationCode] = useState('');
   const [twoFactorPassword, setTwoFactorPassword] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
+  const [can2FA, setCan2FA] = useState<{
+    canEnable: boolean;
+    needsPassword: boolean;
+    message: string;
+    providers?: string[];
+  } | null>(null);
+  const [showAddPasswordDialog, setShowAddPasswordDialog] = useState(false);
   const [currentDeviceTrust, setCurrentDeviceTrust] = useState<{
     isTrusted: boolean;
     deviceName: string;
@@ -164,6 +175,24 @@ export default function SettingsPage() {
       timezone: 'UTC',
     },
   });
+
+  useEffect(() => {
+    const check2FACapability = async () => {
+      const result = await canEnable2FA();
+      if (result.success !== undefined) {
+        setCan2FA({
+          canEnable: result.canEnable,
+          needsPassword: result.needsPassword || false,
+          message: result.message,
+          providers: result.providers,
+        });
+      }
+    };
+
+    if (session?.user) {
+      check2FACapability();
+    }
+  }, [session]);
 
   useEffect(() => {
     if (!isPending && !session?.user) {
@@ -203,6 +232,23 @@ export default function SettingsPage() {
       }
     }
   }, [isPending]);
+
+  const handlePasswordAdded = async () => {
+    // Refresh 2FA capability check
+    const result = await canEnable2FA();
+    if (result.success !== undefined) {
+      setCan2FA({
+        canEnable: result.canEnable,
+        needsPassword: result.needsPassword || false,
+        message: result.message,
+        providers: result.providers,
+      });
+    }
+
+    // Show success message
+    setSuccess('Password authentication added! You can now enable 2FA.');
+    setTimeout(() => setSuccess(''), 3000);
+  };
 
   const loadTrustedDevices = async () => {
     try {
@@ -639,28 +685,98 @@ export default function SettingsPage() {
                 <Separator />
 
                 {/* Two-Factor Authentication */}
-                <div className='flex items-center justify-between'>
-                  <div className='space-y-1'>
-                    <Label className='text-base'>
-                      Two-Factor Authentication
-                    </Label>
-                    <p className='text-sm text-muted-foreground'>
-                      Add an extra layer of security to your account
+                {can2FA === null ? (
+                  // Loading state
+                  <div className='flex items-center justify-between opacity-50'>
+                    <div className='space-y-1'>
+                      <Label className='text-base'>
+                        Two-Factor Authentication
+                      </Label>
+                      <p className='text-sm text-muted-foreground'>
+                        Checking availability...
+                      </p>
+                    </div>
+                    <div className='h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin' />
+                  </div>
+                ) : can2FA.needsPassword ? (
+                  // OAuth user needs to add password first
+                  <div className='space-y-3'>
+                    <div className='flex items-center justify-between'>
+                      <div className='space-y-1'>
+                        <Label className='text-base'>
+                          Two-Factor Authentication
+                        </Label>
+                        <p className='text-sm text-muted-foreground'>
+                          Add password authentication to enable 2FA
+                        </p>
+                      </div>
+                      <div className='flex items-center space-x-2'>
+                        <Unlock className='h-4 w-4 text-orange-500' />
+                        <Badge variant='secondary'>Requires Password</Badge>
+                      </div>
+                    </div>
+
+                    <Alert>
+                      <Shield className='h-4 w-4' />
+                      <AlertTitle>Enable Two-Factor Authentication</AlertTitle>
+                      <AlertDescription>
+                        {can2FA.message}
+                        {can2FA.providers && can2FA.providers.length > 0 && (
+                          <div className='mt-2 flex flex-wrap gap-2'>
+                            <span className='text-xs'>Current providers:</span>
+                            {can2FA.providers.map(provider => (
+                              <Badge
+                                key={provider}
+                                variant='outline'
+                                className='capitalize'
+                              >
+                                {provider}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </AlertDescription>
+                    </Alert>
+
+                    <Button
+                      onClick={() => setShowAddPasswordDialog(true)}
+                      className='w-full'
+                      disabled={isLoading}
+                    >
+                      <Key className='h-4 w-4 mr-2' />
+                      Add Password to Enable 2FA
+                    </Button>
+
+                    <p className='text-xs text-muted-foreground text-center'>
+                      You'll still be able to sign in with{' '}
+                      {can2FA.providers?.join(', ')}
                     </p>
                   </div>
-                  <div className='flex items-center space-x-2'>
-                    {settings.twoFactorEnabled ? (
-                      <Shield className='h-4 w-4 text-green-500' />
-                    ) : (
-                      <Unlock className='h-4 w-4 text-muted-foreground' />
-                    )}
-                    <Switch
-                      checked={settings.twoFactorEnabled}
-                      onCheckedChange={handleTwoFactorToggle}
-                      disabled={isLoading}
-                    />
+                ) : can2FA.canEnable ? (
+                  // Can enable 2FA (has password)
+                  <div className='flex items-center justify-between'>
+                    <div className='space-y-1'>
+                      <Label className='text-base'>
+                        Two-Factor Authentication
+                      </Label>
+                      <p className='text-sm text-muted-foreground'>
+                        Add an extra layer of security to your account
+                      </p>
+                    </div>
+                    <div className='flex items-center space-x-2'>
+                      {settings.twoFactorEnabled ? (
+                        <Shield className='h-4 w-4 text-green-500' />
+                      ) : (
+                        <Unlock className='h-4 w-4 text-muted-foreground' />
+                      )}
+                      <Switch
+                        checked={settings.twoFactorEnabled}
+                        onCheckedChange={handleTwoFactorToggle}
+                        disabled={isLoading}
+                      />
+                    </div>
                   </div>
-                </div>
+                ) : null}
 
                 {/* Current Device Trust - Only show when 2FA is enabled */}
                 {settings.twoFactorEnabled && currentDeviceTrust ? (
@@ -1388,6 +1504,14 @@ export default function SettingsPage() {
         open={showChangePasswordDialog}
         onOpenChange={setShowChangePasswordDialog}
       />
+      {can2FA?.needsPassword && (
+        <AddPasswordDialog
+          open={showAddPasswordDialog}
+          onOpenChange={setShowAddPasswordDialog}
+          providers={can2FA.providers || []}
+          onSuccess={handlePasswordAdded}
+        />
+      )}
     </div>
   );
 }

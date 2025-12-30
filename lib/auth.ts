@@ -59,7 +59,8 @@ export const auth = betterAuth({
     }),
     admin(),
     twoFactor({
-      skipVerificationOnEnable: false, // Require TOTP verification after enabling
+      skipVerificationOnEnable: false, // Keep verification for security
+      // You can customize other options here if needed
     }),
     username(),
   ],
