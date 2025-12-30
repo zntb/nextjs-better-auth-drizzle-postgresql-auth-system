@@ -1,3 +1,5 @@
+// components/auth/social-auth-buttons.tsx
+// Keep it simple - middleware will handle 2FA check
 'use client';
 
 import { signIn } from '@/lib/auth-client';

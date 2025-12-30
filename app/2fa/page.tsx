@@ -1,3 +1,4 @@
+// app/2fa/page.tsx
 'use client';
 
 import { useState } from 'react';
@@ -23,7 +24,7 @@ export default function TwoFAPage() {
   const [error, setError] = useState('');
   const [code, setCode] = useState('');
   const [backupCode, setBackupCode] = useState('');
-  const [trustDevice, setTrustDevice] = useState(false); // Default to false
+  const [trustDevice, setTrustDevice] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -45,13 +46,13 @@ export default function TwoFAPage() {
         // TOTP verification
         result = await authClient.twoFactor.verifyTotp({
           code: verificationCode,
-          trustDevice, // Use checkbox value, not hardcoded true
+          trustDevice,
         });
       } else {
         // Backup code verification
         result = await authClient.twoFactor.verifyBackupCode({
           code: verificationCode,
-          trustDevice, // Use checkbox value
+          trustDevice,
         });
       }
 
@@ -62,14 +63,25 @@ export default function TwoFAPage() {
       }
 
       if (result.data) {
-        // 2FA verified successfully, redirect to home
+        console.log('✅ 2FA verified successfully');
+
+        // Set a cookie to indicate 2FA is verified for this session
+        // This tells middleware to allow access
+        await fetch('/api/auth/set-2fa-verified', {
+          method: 'POST',
+        });
+
+        // Small delay to ensure cookie is set
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Redirect to home
+        console.log('Redirecting to home...');
         router.push('/');
         router.refresh();
       }
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (err) {
+      console.error('2FA verification error:', err);
       setError('Failed to verify code');
-    } finally {
       setIsLoading(false);
     }
   }
@@ -105,7 +117,7 @@ export default function TwoFAPage() {
                 value={code}
                 onChange={e => {
                   setCode(e.target.value);
-                  setBackupCode(''); // Clear backup code when regular code is entered
+                  setBackupCode('');
                 }}
                 disabled={isLoading}
                 maxLength={6}
@@ -134,13 +146,12 @@ export default function TwoFAPage() {
                 value={backupCode}
                 onChange={e => {
                   setBackupCode(e.target.value);
-                  setCode(''); // Clear regular code when backup code is entered
+                  setCode('');
                 }}
                 disabled={isLoading}
               />
               <p className='text-xs text-muted-foreground'>
-                Use a backup code if you don&apos;t have access to your
-                authenticator
+                Use a backup code if you don't have access to your authenticator
               </p>
             </div>
 
@@ -160,8 +171,7 @@ export default function TwoFAPage() {
                   Trust this device for 30 days
                 </Label>
                 <p className='text-xs text-muted-foreground mt-1'>
-                  You won&apos;t be asked for 2FA on this device during this
-                  period
+                  You won't be asked for 2FA on this device during this period
                 </p>
               </div>
             </div>

@@ -214,6 +214,12 @@ export default function Navbar() {
                         onClick={async () => {
                           setIsUserMenuOpen(false);
                           try {
+                            // Clear 2FA verification cookie first
+                            await fetch('/api/auth/signout-with-cleanup', {
+                              method: 'POST',
+                            });
+
+                            // Then sign out
                             await signOut();
                           } catch (error) {
                             console.error('Error signing out:', error);
@@ -381,6 +387,12 @@ export default function Navbar() {
                       onClick={async () => {
                         setIsMenuOpen(false);
                         try {
+                          // Clear 2FA verification cookie first
+                          await fetch('/api/auth/signout-with-cleanup', {
+                            method: 'POST',
+                          });
+
+                          // Then sign out
                           await signOut();
                         } catch (error) {
                           console.error('Error signing out:', error);
