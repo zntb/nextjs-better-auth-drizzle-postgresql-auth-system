@@ -285,9 +285,23 @@ export default function SettingsPage() {
           deviceName: result.deviceName,
           deviceId: result.deviceId,
         });
+      } else {
+        console.warn('Failed to load device trust status:', result.error);
+        // Set a fallback state to prevent the component from hanging
+        setCurrentDeviceTrust({
+          isTrusted: false,
+          deviceName: 'Current Device',
+          deviceId: 'unknown',
+        });
       }
     } catch (error) {
       console.error('Failed to load current device trust status:', error);
+      // Set a fallback state to prevent the component from hanging
+      setCurrentDeviceTrust({
+        isTrusted: false,
+        deviceName: 'Current Device',
+        deviceId: 'unknown',
+      });
     }
   };
 
@@ -403,15 +417,20 @@ export default function SettingsPage() {
     setSuccess('');
 
     try {
-      // Use CLIENT-SIDE verification (not server-side API)
-      const result = await authClient.twoFactor.verifyTotp({
-        code: verificationCode,
+      // Use the dedicated 2FA verification endpoint that also sets the cookie
+      const response = await fetch('/api/auth/verify-2fa-and-continue', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code: verificationCode }),
       });
 
-      if (result.error) {
+      const result = await response.json();
+
+      if (!response.ok) {
         setError(
-          result.error.message ||
-            'Invalid verification code. Please try again.',
+          result.error || 'Invalid verification code. Please try again.',
         );
         setIsVerifying(false);
         return;
@@ -433,15 +452,10 @@ export default function SettingsPage() {
         // Send notification that 2FA has been enabled
         await confirmTwoFactorEnabled();
 
-        // Close dialog after showing success
+        // Reload the page to ensure all state is fresh and middleware recognizes 2FA
         setTimeout(() => {
-          setShow2FADialog(false);
-          setVerificationCode('');
-          setTotpURI('');
-          setBackupCodes([]);
-          setError('');
-          setSuccess('');
-        }, 2000);
+          window.location.reload();
+        }, 1500);
       } else {
         // Session might not be immediately updated
         setSuccess('2FA enabled! Refreshing...');

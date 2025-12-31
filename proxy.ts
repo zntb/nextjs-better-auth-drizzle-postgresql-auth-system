@@ -27,6 +27,7 @@ export async function proxy(request: NextRequest) {
   const adminRoutes = ['/admin'];
   const authRoutes = ['/login', '/register'];
   const skip2FACheck = ['/2fa', '/debug-2fa', '/blocked'];
+  const allowDuring2FASetup = ['/settings']; // Allow settings page during 2FA setup
 
   // Check if user is blocked (but don't redirect if already on blocked page)
   if (session?.user?.blocked && !pathname.startsWith('/blocked')) {
@@ -66,9 +67,25 @@ export async function proxy(request: NextRequest) {
           request.cookies.get('2fa_verified')?.value === 'true';
 
         // If device is not trusted and 2FA not verified, redirect to 2FA page
+        // But allow access to settings page if user is setting up 2FA
         if (!trustedDeviceRecord && !has2FAVerified) {
-          console.log('🔐 2FA required - redirecting to /2fa');
-          return NextResponse.redirect(new URL('/2fa', request.url));
+          // Check if this is a server action request from settings page during 2FA setup
+          const isServerAction =
+            request.headers
+              .get('content-type')
+              ?.includes('multipart/form-data') ||
+            request.headers
+              .get('content-type')
+              ?.includes('application/x-www-form-urlencoded');
+          const isSettingsPageRequest = allowDuring2FASetup.some(route =>
+            pathname.startsWith(route),
+          );
+
+          // Allow server actions from settings page but redirect for other requests
+          if (!(isServerAction && isSettingsPageRequest)) {
+            console.log('🔐 2FA required - redirecting to /2fa');
+            return NextResponse.redirect(new URL('/2fa', request.url));
+          }
         }
       }
     } catch (error) {
